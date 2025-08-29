@@ -31,12 +31,16 @@
     renderer.setPixelRatio(window.devicePixelRatio || 1);
 
     function sizeToWindow() {
-      renderer.setSize(window.innerWidth, window.innerHeight, false);
-      camera.left = -5;
-      camera.right = 5;
-      camera.top = 5;
-      camera.bottom = -5;
-      camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  // Preserve aspect ratio so particles (sprites) don't get stretched
+  var aspect = window.innerWidth / window.innerHeight;
+  var halfHeight = 5;
+  var halfWidth = halfHeight * aspect;
+  camera.left = -halfWidth;
+  camera.right = halfWidth;
+  camera.top = halfHeight;
+  camera.bottom = -halfHeight;
+  camera.updateProjectionMatrix();
     }
 
     var scene = new THREE.Scene();
@@ -51,22 +55,42 @@
     pointLight.position.set(0, 0, 5);
     scene.add(pointLight);
 
-    // ----- particles -----
-    var particleCount = 550;
+    // ----- particles (soft sprites for rounded dust look) -----
+    var particleCount = 450;
     var particles = new THREE.Group();
     scene.add(particles);
 
+    // create a soft circular texture (radial gradient)
+    function createSoftCircleTexture(size, innerColor, outerColor) {
+      var c = document.createElement('canvas');
+      c.width = c.height = size;
+      var ctx = c.getContext('2d');
+      var grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+      grad.addColorStop(0, innerColor);
+      grad.addColorStop(1, outerColor);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+      var tex = new THREE.CanvasTexture(c);
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    var baseTexture = createSoftCircleTexture(128, 'rgba(255,255,255,0.95)', 'rgba(255,255,255,0.02)');
+    var spriteMaterial = new THREE.SpriteMaterial({
+      map: baseTexture,
+      color: 0xffffff,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending
+    });
+
     var particleData = [];
     for (var i = 0; i < particleCount; i++) {
-      var particleSize = 0.010 + Math.random() * 0.01;
-      var particleGeometry = new THREE.SphereGeometry(particleSize, 6, 6);
-      var particleMaterial = new THREE.MeshPhongMaterial({
-        color: 0x5A5A5A,
-        emissive: 0x5A5A5A,
-        emissiveIntensity: 0.5,
-        shininess: 20
-      });
-      var particle = new THREE.Mesh(particleGeometry, particleMaterial);
+      var particleSize = 0.03 + Math.random() * 0.06; // world units, small and varied
+      var particle = new THREE.Sprite(spriteMaterial);
+      particle.scale.set(particleSize, particleSize, 1);
 
       var initialPosition = new THREE.Vector3(
         (Math.random() - 0.5) * 10,
@@ -76,16 +100,16 @@
       particle.position.copy(initialPosition);
       particles.add(particle);
 
-      var driftSpeed = 0.0002 + Math.random() * 0.0005;
-      var oscillationSpeed = 0.00015 + Math.random() * 0.0003;
-      var oscillationAmplitude = 0.001 + Math.random() * 0.002;
+      var driftSpeed = 0.0002 + Math.random() * 0.0006;
+      var oscillationSpeed = 0.00015 + Math.random() * 0.0004;
+      var oscillationAmplitude = 0.001 + Math.random() * 0.003;
 
       particleData.push({
         particle: particle,
         initialPosition: initialPosition,
         velocity: new THREE.Vector3(
-          (Math.random() - 0.5) * 0.001,
-          (Math.random() - 0.5) * 0.001,
+          (Math.random() - 0.5) * 0.0015,
+          (Math.random() - 0.5) * 0.0015,
           0
         ),
         phase: Math.random() * Math.PI * 2,

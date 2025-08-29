@@ -92,6 +92,8 @@
       var particle = new THREE.Sprite(spriteMaterial);
       particle.scale.set(particleSize, particleSize, 1);
 
+      // initial positions will be spread across the camera frustum — populate roughly now,
+      // and we'll call spreadParticles() after sizing to guarantee full-screen coverage.
       var initialPosition = new THREE.Vector3(
         (Math.random() - 0.5) * 10,
         (Math.random() - 0.5) * 10,
@@ -128,6 +130,27 @@
         disperseTime: 0,
         disperseDirection: new THREE.Vector3(0, 0, 0)
       });
+    }
+
+    // Spread particles across the visible frustum using the current camera bounds
+    function spreadParticles() {
+      // ensure camera projection is up-to-date
+      var left = camera.left;
+      var right = camera.right;
+      var top = camera.top;
+      var bottom = camera.bottom;
+
+      for (var i = 0; i < particleData.length; i++) {
+        var d = particleData[i];
+        // spread across full width/height with slight padding
+        var padX = (right - left) * 0.05;
+        var padY = (top - bottom) * 0.05;
+        var x = left + padX + Math.random() * (right - left - padX * 2);
+        var y = bottom + padY + Math.random() * (top - bottom - padY * 2);
+        d.initialPosition.set(x, y, 0);
+        // place particle at or near its initial position, with a tiny random offset
+        d.particle.position.set(x + (Math.random() - 0.5) * 0.2, y + (Math.random() - 0.5) * 0.2, 0);
+      }
     }
 
     // ----- interaction -----
@@ -281,8 +304,13 @@
 
     // ----- start -----
     sizeToWindow();
+    // After sizing, distribute particles across the entire frustum
+    spreadParticles();
     animate();
-    window.addEventListener('resize', sizeToWindow);
+    window.addEventListener('resize', function () {
+      sizeToWindow();
+      spreadParticles();
+    });
   }
 
   // Run immediately if DOM is ready; otherwise wait

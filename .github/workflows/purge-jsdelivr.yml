@@ -1,0 +1,29 @@
+name: Purge jsDelivr cache
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get changed files (compare to previous commit)
+        id: diff
+        run: |
+          git fetch --depth=2 origin ${{ github.ref }}
+          # List changed files in the last push range (handles single or multiple commits)
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | tr '\n' ' ')
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Purge changed JS/CSS files via jsDelivr
+        if: steps.diff.outputs.changed != ''
+        run: |
+          REPO="${{ github.repository }}"
+          for f in ${{ steps.diff.outputs.changed }}; do
+            case "$f" in
+              *.js|*.css)
+                echo "Purging $f"
+                curl -s "https://purge.jsdelivr.net/gh/${REPO}@main/${f}" > /dev/null
+              ;;
+            esac
+          done

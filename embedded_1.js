@@ -48,10 +48,12 @@
     camera.position.z = 5;
 
     // Lights
-    var ambientLight = new THREE.AmbientLight(0x444444, 0.5);
+  // slightly brighter ambient to lift overall visibility of particles
+  var ambientLight = new THREE.AmbientLight(0x444444, 0.75);
     scene.add(ambientLight);
 
-    var pointLight = new THREE.PointLight(0xDF009A, 1.2, 20);
+  // stronger point light (tinted) to highlight the magenta particles
+  var pointLight = new THREE.PointLight(0xDF009A, 1.8, 20);
     pointLight.position.set(0, 0, 5);
     scene.add(pointLight);
 
@@ -78,13 +80,16 @@
     }
 
     // create a magenta-tinted soft circle for magenta particles (#D900FF)
-    var baseTexture = createSoftCircleTexture(128, 'rgba(217,0,255,0.95)', 'rgba(217,0,255,0.02)');
+    // increase center alpha and outer alpha so sprites look brighter
+    var baseTexture = createSoftCircleTexture(128, 'rgba(217,0,255,1.0)', 'rgba(217,0,255,0.12)');
     var spriteMaterial = new THREE.SpriteMaterial({
       map: baseTexture,
       color: 0xD900FF,
+      opacity: 0.95,
       transparent: true,
       depthWrite: false,
-      blending: THREE.NormalBlending
+      // additive blending makes overlapping particles glow brighter
+      blending: THREE.AdditiveBlending
     });
 
     var particleData = [];

@@ -7,25 +7,7 @@ jobs:
   purge:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Get changed files (compare to previous commit)
-        id: diff
-        run: |
-          git fetch --depth=2 origin ${{ github.ref }}
-          CHANGED=$(git diff --name-only HEAD~1 HEAD | tr '\n' ' ')
-          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
-
-      - name: Purge changed JS/CSS files via jsDelivr
-        if: steps.diff.outputs.changed != ''
-        run: |
-          REPO="${{ github.repository }}"
-          for f in ${{ steps.diff.outputs.changed }}; do
-            case "$f" in
-              *.js|*.css)
-                echo "Purging $f"
-                curl -s "https://purge.jsdelivr.net/gh/${REPO}@main/${f}" > /dev/null
-              ;;
-            esac
-          done
+      - name: Purge embedded_1.js
+        run: curl -s "https://purge.jsdelivr.net/gh/level2d/triptych-web@main/embedded_1.js"
+      - name: Purge embedded_1.css
+        run: curl -s "https://purge.jsdelivr.net/gh/level2d/triptych-web@main/embedded_1.css"

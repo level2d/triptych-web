@@ -56,7 +56,7 @@
     scene.add(pointLight);
 
     // ----- particles (soft sprites for rounded dust look) -----
-    var particleCount = 450;
+    var particleCount = 350;
     var particles = new THREE.Group();
     scene.add(particles);
 

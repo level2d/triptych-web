@@ -51,7 +51,7 @@
     var ambientLight = new THREE.AmbientLight(0x444444, 0.5);
     scene.add(ambientLight);
 
-    var pointLight = new THREE.PointLight(0x5A5A5A, 1.2, 20);
+    var pointLight = new THREE.PointLight(0xD900FF, 1.2, 20);
     pointLight.position.set(0, 0, 5);
     scene.add(pointLight);
 
@@ -77,18 +77,36 @@
       return tex;
     }
 
-    var baseTexture = createSoftCircleTexture(128, 'rgba(255,255,255,0.95)', 'rgba(255,255,255,0.02)');
+    // tint the base soft circle to the requested magenta (#D900FF)
+    var baseTexture = createSoftCircleTexture(128, 'rgba(217,0,255,0.95)', 'rgba(217,0,255,0.02)');
     var spriteMaterial = new THREE.SpriteMaterial({
       map: baseTexture,
-      color: 0xffffff,
+      color: 0xD900FF,
       transparent: true,
       depthWrite: false,
       blending: THREE.NormalBlending
     });
 
+    // smoke trail setup: a group to contain transient smoke sprites and a small array to track their life
+    var smokeGroup = new THREE.Group();
+    scene.add(smokeGroup);
+    var smokeParticles = [];
+
+    function createSmokeMaterial(opacity) {
+      return new THREE.SpriteMaterial({
+        map: baseTexture,
+        color: 0xD900FF,
+        transparent: true,
+        opacity: opacity || 0.18,
+        depthWrite: false,
+        blending: THREE.NormalBlending
+      });
+    }
+
     var particleData = [];
     for (var i = 0; i < particleCount; i++) {
-      var particleSize = 0.03 + Math.random() * 0.06; // world units, small and varied
+  // Slightly smaller particles overall
+  var particleSize = 0.018 + Math.random() * 0.035; // world units, small and varied
       var particle = new THREE.Sprite(spriteMaterial);
       particle.scale.set(particleSize, particleSize, 1);
 
@@ -178,6 +196,23 @@
       mouseSpeed = mouse.distanceTo(prevMouse);
       if (!mouseHasMoved) mouseHasMoved = true;
       pointLight.position.set(mouse.x, mouse.y, 5);
+      // Emit a subtle smoke sprite at the cursor position. Use a tiny randomized velocity
+      (function emitSmokeAtCursor() {
+        var pos = new THREE.Vector3(mouse.x, mouse.y, 0);
+        var s = new THREE.Sprite(createSmokeMaterial(0.16 + Math.random() * 0.06));
+        var startScale = 0.01 + Math.random() * 0.02;
+        s.scale.set(startScale, startScale, 1);
+        s.position.copy(pos);
+        smokeGroup.add(s);
+        smokeParticles.push({
+          sprite: s,
+          createdAt: performance.now() * 0.001,
+          life: 0.9 + Math.random() * 0.6,
+          startScale: startScale,
+          startOpacity: s.material.opacity,
+          velocity: new THREE.Vector3((Math.random() - 0.5) * 0.01, 0.005 + Math.random() * 0.01, 0)
+        });
+      })();
     });
 
     // breeze
@@ -205,6 +240,28 @@
       var time = performance.now() * 0.001;
       var detachDistance = getDetachDistance();
       mouseSpeed *= 0.95;
+
+      // update smoke particles: fade and grow slightly, then remove when expired
+      for (var si = smokeParticles.length - 1; si >= 0; si--) {
+        var sp = smokeParticles[si];
+        var age = time - sp.createdAt;
+        var t = age / sp.life;
+        if (t >= 1) {
+          // remove
+          smokeGroup.remove(sp.sprite);
+          if (sp.sprite.material) sp.sprite.material.dispose();
+          smokeParticles.splice(si, 1);
+          continue;
+        }
+        // fade out and grow a touch
+        var currentOpacity = sp.startOpacity * (1 - t);
+        sp.sprite.material.opacity = currentOpacity;
+        var scale = sp.startScale * (1 + t * 2.2);
+        sp.sprite.scale.set(scale, scale, 1);
+        // gentle upward drift + small sideways velocity
+        sp.sprite.position.x += sp.velocity.x;
+        sp.sprite.position.y += sp.velocity.y * (1 - t * 0.3);
+      }
 
       for (var i = 0; i < particleData.length; i++) {
         var data = particleData[i];

@@ -159,10 +159,11 @@
     var prevMouse = new THREE.Vector3(0, 0, 0);
     var attractionStrength = 0.04;
     var returnStrength = 0.003;
-    var influenceRadius = 3.0;
-    var disperseRadius = 2.0;
-    var disperseStrength = 0.1;
-    var disperseDuration = 2.0;
+  var influenceRadius = 3.0;
+  // increase the radius and strength of the repulsion so particles "fly" away more strongly
+  var disperseRadius = 2.6;
+  var disperseStrength = 0.45;
+  var disperseDuration = 2.0;
 
     function getDetachDistance() {
       return (50 / window.innerWidth) * 10;

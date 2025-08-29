@@ -77,10 +77,11 @@
       return tex;
     }
 
-    var baseTexture = createSoftCircleTexture(128, 'rgba(255,255,255,0.95)', 'rgba(255,255,255,0.02)');
+    // create a magenta-tinted soft circle for magenta particles (#D900FF)
+    var baseTexture = createSoftCircleTexture(128, 'rgba(217,0,255,0.95)', 'rgba(217,0,255,0.02)');
     var spriteMaterial = new THREE.SpriteMaterial({
       map: baseTexture,
-      color: 0xffffff,
+      color: 0xD900FF,
       transparent: true,
       depthWrite: false,
       blending: THREE.NormalBlending

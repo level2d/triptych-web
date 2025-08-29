@@ -1,12 +1,11 @@
 #custom-embed-div {
    position: fixed;
-   bottom: 0;
-   right: 0;
+   top: 0;
+   left: 0;
    z-index: 9999;
    pointer-events: none;
    user-select: none;
-   border: 1px solid #ccc;
-   width: 120px;
-   height: 120px;
-   opacity: 0.4;
+   width: 100vh;
+   height: 100vh;
+   opacity: 0;
 }

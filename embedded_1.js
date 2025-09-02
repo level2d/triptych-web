@@ -80,16 +80,16 @@
     }
 
     // create a magenta-tinted soft circle for magenta particles (#D900FF)
-    // increase center alpha and outer alpha so sprites look brighter
-    var baseTexture = createSoftCircleTexture(128, 'rgba(217,0,255,1.0)', 'rgba(217,0,255,0.12)');
+    // stronger outer alpha so sprites remain visible on light backgrounds
+    var baseTexture = createSoftCircleTexture(128, 'rgba(217,0,255,1.0)', 'rgba(217,0,255,0.28)');
     var spriteMaterial = new THREE.SpriteMaterial({
       map: baseTexture,
       color: 0xD900FF,
-      opacity: 0.95,
+      opacity: 1.0,
       transparent: true,
       depthWrite: false,
-      // additive blending makes overlapping particles glow brighter
-      blending: THREE.AdditiveBlending
+      // use normal blending for consistent visibility on different backgrounds
+      blending: THREE.NormalBlending
     });
 
     var particleData = [];

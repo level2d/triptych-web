@@ -94,7 +94,8 @@
 
     var particleData = [];
     for (var i = 0; i < particleCount; i++) {
-      var particleSize = 0.03 + Math.random() * 0.06; // world units, small and varied
+      // use a tighter, slightly smaller particle size similar to the pasted code (around 0.02)
+      var particleSize = 0.02 + Math.random() * 0.01; // world units, consistent and visible
       var particle = new THREE.Sprite(spriteMaterial);
       particle.scale.set(particleSize, particleSize, 1);
 
@@ -134,7 +135,11 @@
         releaseChance: 0.01 + Math.random() * 0.03,
         dispersing: false,
         disperseTime: 0,
-        disperseDirection: new THREE.Vector3(0, 0, 0)
+  disperseDirection: new THREE.Vector3(0, 0, 0),
+  // new fields for easing-based dispersion (from pasted code)
+  disperseTarget: new THREE.Vector3(0, 0, 0),
+  disperseStartTime: 0,
+  easingDuration: 0.7
       });
     }
 
@@ -174,8 +179,10 @@
       return (50 / window.innerWidth) * 10;
     }
 
-    var mouseHasMoved = false;
-    var mouseSpeed = 0;
+  var mouseHasMoved = false;
+  var mouseSpeed = 0;
+  // easing duration for lerp-based dispersion (seconds)
+  var easingDuration = 0.7;
 
     window.addEventListener('mousemove', function (event) {
       prevMouse.copy(mouse);
@@ -245,19 +252,33 @@
           var distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < disperseRadius && !data.dispersing && !data.attached) {
+            // start easing-based dispersion: compute a target offset away from the cursor
             data.dispersing = true;
             data.disperseTime = time;
+            data.disperseStartTime = time;
             data.disperseDirection.set(-dx, -dy, 0).normalize();
+            var angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * Math.PI / 2;
+            var mag = disperseStrength * (0.6 + Math.random() * 1.4);
+            // allow quick mouse movements to amplify the magnitude
+            mag *= Math.min(1 + mouseSpeed * 40, 2.5);
+            data.disperseTarget.set(
+              particle.position.x + Math.cos(angle) * mag,
+              particle.position.y + Math.sin(angle) * mag,
+              0
+            );
           }
 
           if (data.dispersing) {
-            var disperseElapsed = time - data.disperseTime;
-            if (disperseElapsed > disperseDuration) {
-              data.dispersing = false;
+            // easing-based lerp towards disperseTarget, then back to initialPosition
+            var elapsed = time - data.disperseStartTime;
+            var t = Math.min(elapsed / easingDuration, 1);
+            var easeOut = 1 - Math.pow(1 - t, 3); // cubic ease-out
+
+            if (distance < disperseRadius) {
+              particle.position.lerp(data.disperseTarget, easeOut);
             } else {
-              var strength = disperseStrength * (1 - disperseElapsed / disperseDuration);
-              particle.position.x += data.disperseDirection.x * strength;
-              particle.position.y += data.disperseDirection.y * strength;
+              particle.position.lerp(initialPosition, easeOut);
+              if (t >= 1) data.dispersing = false;
             }
           } else {
             if (distance < influenceRadius && !data.attached && distance >= disperseRadius) {

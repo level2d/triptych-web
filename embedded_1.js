@@ -158,13 +158,14 @@ disperseDirection: new THREE.Vector3(0, 0, 0)
 // ----- interaction -----
 var mouse = new THREE.Vector3(0, 0, 0);
 var prevMouse = new THREE.Vector3(0, 0, 0);
-// interaction tuning: make cursor repulsion stronger and snappier
+// interaction tuning: make cursor repulsion centered, tighter and snappier
 var attractionStrength = 0.025; // weaker long-term attachment so particles don't lag behind
 var returnStrength = 0.006; // faster return to home position when not influenced
-var influenceRadius = 3.0;
-var disperseRadius = 2.5; // larger radius where particles repel
-var disperseStrength = 0.35; // stronger repulsion force
-var disperseDuration = 1.2; // shorter, snappier dispersal
+// tightened influence so particles react directly at the cursor and don't disperse far
+var influenceRadius = 1.8; // world units
+var disperseRadius = 0.9; // radius inside which particles get an immediate impulse
+var disperseStrength = 0.18; // reduced repulsion force for shorter dispersion
+var disperseDuration = 0.9; // shorter, snappier dispersal
 
 function getDetachDistance() {
 return (50 / window.innerWidth) * 10;
@@ -174,14 +175,16 @@ var mouseHasMoved = false;
 var mouseSpeed = 0;
 
 window.addEventListener('mousemove', function (event) {
-prevMouse.copy(mouse);
-var x = (event.clientX / window.innerWidth) * 2 - 1;
-var y = -(event.clientY / window.innerHeight) * 2 + 1;
-mouse.set(x * 5, y * 5, 0);
-// update mouse speed (world units). scale remains small so amplify its effect later
-mouseSpeed = mouse.distanceTo(prevMouse);
-if (!mouseHasMoved) mouseHasMoved = true;
-pointLight.position.set(mouse.x, mouse.y, 5);
+  prevMouse.copy(mouse);
+  // map screen coordinates to camera (world) coordinates so repulsion centers on the cursor
+  var left = camera.left, right = camera.right, top = camera.top, bottom = camera.bottom;
+  var wx = left + (event.clientX / window.innerWidth) * (right - left);
+  var wy = bottom + (1 - event.clientY / window.innerHeight) * (top - bottom);
+  mouse.set(wx, wy, 0);
+  // update mouse speed (world units)
+  mouseSpeed = mouse.distanceTo(prevMouse);
+  if (!mouseHasMoved) mouseHasMoved = true;
+  pointLight.position.set(mouse.x, mouse.y, 5);
 });
 
 // ...existing code...

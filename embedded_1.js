@@ -260,46 +260,25 @@ particle.position.x += data.disperseDirection.x * strength;
 particle.position.y += data.disperseDirection.y * strength;
 }
 } else {
-if (distance < influenceRadius && !data.attached && distance >= disperseRadius) {
-data.attached = true;
-data.attachPoint.copy(mouse);
-data.capturePoint.copy(particle.position);
-data.captureTime = time;
-}
-
-if (data.attached) {
-var cursorMovementDistance = Math.sqrt(
-Math.pow(mouse.x - data.capturePoint.x, 2) +
-Math.pow(mouse.y - data.capturePoint.y, 2)
-);
-var attachDuration = time - data.captureTime;
-var timeBasedReleaseChance = Math.min(0.01 * attachDuration, 0.1);
-var speedBasedReleaseChance = mouseSpeed * 2;
-var randomReleaseChance = data.releaseChance;
-var releaseChance = timeBasedReleaseChance + speedBasedReleaseChance + randomReleaseChance;
-
-if (cursorMovementDistance > detachDistance ||
-Math.random() < releaseChance ||
-distance < disperseRadius) {
-data.attached = false;
-if (distance < disperseRadius) {
-data.dispersing = true;
-data.disperseTime = time;
-data.disperseDirection.set(-dx, -dy, 0).normalize();
-}
-} else {
-  // adaptively weaker attachment so particles don't stick and lag too long
-  var timeAttenuatedStrength = attractionStrength * Math.max(0.2, 1 - (attachDuration * 0.15));
-  // make speed-based release more sensitive
-  var speedBasedReleaseChance = mouseSpeed * 6;
-  var timeBasedReleaseChance = Math.min(0.02 * attachDuration, 0.15);
-  var randomReleaseChance = data.releaseChance;
-  var releaseChance = timeBasedReleaseChance + speedBasedReleaseChance + randomReleaseChance;
-
-  var strength2 = timeAttenuatedStrength * (1 - distance / influenceRadius);
-particle.position.x += dx * strength2;
-particle.position.y += dy * strength2;
-}
+// Anti-magnetic repulsion: apply to ALL particles within influenceRadius
+if (distance < influenceRadius) {
+  // vector from mouse to particle
+  var rx = particle.position.x - mouse.x;
+  var ry = particle.position.y - mouse.y;
+  var d = Math.max(distance, 0.0001);
+  var falloff = 1 - (d / influenceRadius);
+  // stronger near the cursor with a squared falloff for a snappy bounce
+  var repulse = disperseStrength * Math.pow(falloff, 2);
+  // immediate displacement (visible bounce)
+  particle.position.x += (rx / d) * repulse * 0.9;
+  particle.position.y += (ry / d) * repulse * 0.9;
+  // velocity impulse so particle continues to move away
+  velocity.x += (rx / d) * repulse * 0.9 + (Math.random() - 0.5) * 0.001;
+  velocity.y += (ry / d) * repulse * 0.9 + (Math.random() - 0.5) * 0.001;
+  // mark dispersing briefly so return logic still applies
+  data.dispersing = true;
+  data.disperseTime = time;
+  data.disperseDirection.set(rx / d, ry / d, 0);
 }
 }
 }

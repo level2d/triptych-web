@@ -185,9 +185,12 @@ var mouseSpeed = 0;
 
 window.addEventListener('mousemove', function (event) {
   prevMouse.copy(mouse);
-  var x = (event.clientX / window.innerWidth) * 2 - 1;
-  var y = -(event.clientY / window.innerHeight) * 2 + 1;
-  mouse.set(x * 5, y * 5, 0);
+  // map client coordinates to camera world coordinates so repulsion is exactly at cursor
+  var cx = event.clientX / window.innerWidth;
+  var cy = event.clientY / window.innerHeight;
+  var wx = camera.left + cx * (camera.right - camera.left);
+  var wy = camera.bottom + (1 - cy) * (camera.top - camera.bottom);
+  mouse.set(wx, wy, 0);
   // update mouse speed (world units)
   mouseSpeed = mouse.distanceTo(prevMouse);
   if (!mouseHasMoved) mouseHasMoved = true;

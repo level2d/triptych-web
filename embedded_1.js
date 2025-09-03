@@ -184,36 +184,7 @@ if (!mouseHasMoved) mouseHasMoved = true;
 pointLight.position.set(mouse.x, mouse.y, 5);
 });
 
-// --- subtle smoke trails behind cursor ---
-var smokeGroup = new THREE.Group();
-scene.add(smokeGroup);
-var smokeParticles = [];
-var lastSmokeSpawn = 0;
-var smokeSpawnInterval = 0.025; // seconds between smoke spawns
-
-var smokeMaterial = new THREE.SpriteMaterial({
-  map: baseTexture,
-  color: 0xD900FF,
-  transparent: true,
-  opacity: 0.12,
-  depthWrite: false,
-  blending: THREE.NormalBlending
-});
-
-window.addEventListener('mousemove', function (event) {
-  // spawn smoke on mouse move but throttle spawns
-  var now = performance.now() * 0.001;
-  if (now - lastSmokeSpawn > smokeSpawnInterval) {
-    lastSmokeSpawn = now;
-    var sMat = smokeMaterial.clone();
-    var s = new THREE.Sprite(sMat);
-    var sSize = 0.04;
-    s.scale.set(sSize, sSize, 1);
-    s.position.set(mouse.x, mouse.y, 0);
-    smokeGroup.add(s);
-    smokeParticles.push({ sprite: s, material: sMat, birth: now, life: 1.0, startSize: sSize, endSize: 0.18 });
-  }
-});
+// ...existing code...
 
 // breeze
 var breezeTime = 0;
@@ -341,28 +312,6 @@ particle.position.x += (initialPosition.x - particle.position.x) * returnFactor;
 particle.position.y += (initialPosition.y - particle.position.y) * returnFactor;
 }
 }
-
-  // --- update smoke particles: fade, scale up slightly, drift, and cleanup ---
-  for (var si = smokeParticles.length - 1; si >= 0; si--) {
-    var sp = smokeParticles[si];
-    var age = time - sp.birth;
-    var t = age / sp.life;
-    if (t >= 1) {
-      // remove
-      if (sp.sprite.parent) sp.sprite.parent.remove(sp.sprite);
-      try { sp.material.dispose(); } catch (e) {}
-      smokeParticles.splice(si, 1);
-      continue;
-    }
-    // fade out and grow slightly
-    var opacity = 0.12 * (1 - t);
-    sp.material.opacity = opacity;
-    var s = sp.startSize + (sp.endSize - sp.startSize) * t;
-    sp.sprite.scale.set(s, s, 1);
-    // subtle upward drift and spread
-    sp.sprite.position.x += (breezeDirection.x * 0.02) + (Math.random() - 0.5) * 0.002;
-    sp.sprite.position.y += 0.01 * (1 - t) + (Math.random() - 0.5) * 0.002;
-  }
 
 renderer.render(scene, camera);
 }

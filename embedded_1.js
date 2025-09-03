@@ -78,17 +78,19 @@ return tex;
 }
 
 var baseTexture = createSoftCircleTexture(128, 'rgba(255,255,255,0.95)', 'rgba(255,255,255,0.02)');
+// main particle material tinted to #D900FF
 var spriteMaterial = new THREE.SpriteMaterial({
-map: baseTexture,
-color: 0xffffff,
-transparent: true,
-depthWrite: false,
-blending: THREE.NormalBlending
+  map: baseTexture,
+  color: 0xD900FF,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.NormalBlending
 });
 
 var particleData = [];
 for (var i = 0; i < particleCount; i++) {
-var particleSize = 0.03 + Math.random() * 0.06; // world units, small and varied
+// make particles slightly smaller and tighter in size variance
+var particleSize = 0.015 + Math.random() * 0.025; // world units, smaller and varied
 var particle = new THREE.Sprite(spriteMaterial);
 particle.scale.set(particleSize, particleSize, 1);
 
@@ -156,12 +158,13 @@ disperseDirection: new THREE.Vector3(0, 0, 0)
 // ----- interaction -----
 var mouse = new THREE.Vector3(0, 0, 0);
 var prevMouse = new THREE.Vector3(0, 0, 0);
-var attractionStrength = 0.04;
-var returnStrength = 0.003;
+// interaction tuning: make cursor repulsion stronger and snappier
+var attractionStrength = 0.025; // weaker long-term attachment so particles don't lag behind
+var returnStrength = 0.006; // faster return to home position when not influenced
 var influenceRadius = 3.0;
-var disperseRadius = 2.0;
-var disperseStrength = 0.1;
-var disperseDuration = 2.0;
+var disperseRadius = 2.5; // larger radius where particles repel
+var disperseStrength = 0.35; // stronger repulsion force
+var disperseDuration = 1.2; // shorter, snappier dispersal
 
 function getDetachDistance() {
 return (50 / window.innerWidth) * 10;
@@ -175,9 +178,41 @@ prevMouse.copy(mouse);
 var x = (event.clientX / window.innerWidth) * 2 - 1;
 var y = -(event.clientY / window.innerHeight) * 2 + 1;
 mouse.set(x * 5, y * 5, 0);
+// update mouse speed (world units). scale remains small so amplify its effect later
 mouseSpeed = mouse.distanceTo(prevMouse);
 if (!mouseHasMoved) mouseHasMoved = true;
 pointLight.position.set(mouse.x, mouse.y, 5);
+});
+
+// --- subtle smoke trails behind cursor ---
+var smokeGroup = new THREE.Group();
+scene.add(smokeGroup);
+var smokeParticles = [];
+var lastSmokeSpawn = 0;
+var smokeSpawnInterval = 0.025; // seconds between smoke spawns
+
+var smokeMaterial = new THREE.SpriteMaterial({
+  map: baseTexture,
+  color: 0xD900FF,
+  transparent: true,
+  opacity: 0.12,
+  depthWrite: false,
+  blending: THREE.NormalBlending
+});
+
+window.addEventListener('mousemove', function (event) {
+  // spawn smoke on mouse move but throttle spawns
+  var now = performance.now() * 0.001;
+  if (now - lastSmokeSpawn > smokeSpawnInterval) {
+    lastSmokeSpawn = now;
+    var sMat = smokeMaterial.clone();
+    var s = new THREE.Sprite(sMat);
+    var sSize = 0.04;
+    s.scale.set(sSize, sSize, 1);
+    s.position.set(mouse.x, mouse.y, 0);
+    smokeGroup.add(s);
+    smokeParticles.push({ sprite: s, material: sMat, birth: now, life: 1.0, startSize: sSize, endSize: 0.18 });
+  }
 });
 
 // breeze
@@ -202,9 +237,10 @@ breezeDirection.set(
 );
 }
 
-var time = performance.now() * 0.001;
+  var time = performance.now() * 0.001;
 var detachDistance = getDetachDistance();
-mouseSpeed *= 0.95;
+  // make mouseSpeed decay faster so releases respond quickly
+  mouseSpeed *= 0.8;
 
 for (var i = 0; i < particleData.length; i++) {
 var data = particleData[i];
@@ -243,12 +279,12 @@ data.disperseTime = time;
 data.disperseDirection.set(-dx, -dy, 0).normalize();
 }
 
-if (data.dispersing) {
+  if (data.dispersing) {
 var disperseElapsed = time - data.disperseTime;
 if (disperseElapsed > disperseDuration) {
 data.dispersing = false;
 } else {
-var strength = disperseStrength * (1 - disperseElapsed / disperseDuration);
+    var strength = disperseStrength * (1 - disperseElapsed / disperseDuration);
 particle.position.x += data.disperseDirection.x * strength;
 particle.position.y += data.disperseDirection.y * strength;
 }
@@ -281,8 +317,15 @@ data.disperseTime = time;
 data.disperseDirection.set(-dx, -dy, 0).normalize();
 }
 } else {
-var timeAttenuatedStrength = attractionStrength * Math.max(0.2, 1 - (attachDuration * 0.1));
-var strength2 = timeAttenuatedStrength * (1 - distance / influenceRadius);
+  // adaptively weaker attachment so particles don't stick and lag too long
+  var timeAttenuatedStrength = attractionStrength * Math.max(0.2, 1 - (attachDuration * 0.15));
+  // make speed-based release more sensitive
+  var speedBasedReleaseChance = mouseSpeed * 6;
+  var timeBasedReleaseChance = Math.min(0.02 * attachDuration, 0.15);
+  var randomReleaseChance = data.releaseChance;
+  var releaseChance = timeBasedReleaseChance + speedBasedReleaseChance + randomReleaseChance;
+
+  var strength2 = timeAttenuatedStrength * (1 - distance / influenceRadius);
 particle.position.x += dx * strength2;
 particle.position.y += dy * strength2;
 }
@@ -298,6 +341,28 @@ particle.position.x += (initialPosition.x - particle.position.x) * returnFactor;
 particle.position.y += (initialPosition.y - particle.position.y) * returnFactor;
 }
 }
+
+  // --- update smoke particles: fade, scale up slightly, drift, and cleanup ---
+  for (var si = smokeParticles.length - 1; si >= 0; si--) {
+    var sp = smokeParticles[si];
+    var age = time - sp.birth;
+    var t = age / sp.life;
+    if (t >= 1) {
+      // remove
+      if (sp.sprite.parent) sp.sprite.parent.remove(sp.sprite);
+      try { sp.material.dispose(); } catch (e) {}
+      smokeParticles.splice(si, 1);
+      continue;
+    }
+    // fade out and grow slightly
+    var opacity = 0.12 * (1 - t);
+    sp.material.opacity = opacity;
+    var s = sp.startSize + (sp.endSize - sp.startSize) * t;
+    sp.sprite.scale.set(s, s, 1);
+    // subtle upward drift and spread
+    sp.sprite.position.x += (breezeDirection.x * 0.02) + (Math.random() - 0.5) * 0.002;
+    sp.sprite.position.y += 0.01 * (1 - t) + (Math.random() - 0.5) * 0.002;
+  }
 
 renderer.render(scene, camera);
 }

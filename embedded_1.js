@@ -20,6 +20,7 @@ canvas.id = 'webglCanvas';
 container.appendChild(canvas);
 }
 
+
 // ----- dependency check -----
 if (typeof THREE === 'undefined') {
 console.error('THREE.js is not loaded. Check your script source.');
@@ -91,7 +92,12 @@ var particleData = [];
 for (var i = 0; i < particleCount; i++) {
 // make particles slightly smaller and tighter in size variance
 var particleSize = 0.015 + Math.random() * 0.025; // world units, smaller and varied
-var particle = new THREE.Sprite(spriteMaterial);
+// clone material per-particle so we can tint/opacity/blending individually for glow
+var mat = spriteMaterial.clone();
+mat.transparent = true;
+mat.opacity = 1.0;
+mat.blending = THREE.NormalBlending;
+var particle = new THREE.Sprite(mat);
 particle.scale.set(particleSize, particleSize, 1);
 
       // initial positions will be spread across the camera frustum — populate roughly now,
@@ -108,8 +114,11 @@ var driftSpeed = 0.0002 + Math.random() * 0.0006;
 var oscillationSpeed = 0.00015 + Math.random() * 0.0004;
 var oscillationAmplitude = 0.001 + Math.random() * 0.003;
 
-particleData.push({
-particle: particle,
+  particleData.push({
+  particle: particle,
+  material: mat,
+  baseScale: particleSize,
+  baseOpacity: mat.opacity,
 initialPosition: initialPosition,
 velocity: new THREE.Vector3(
 (Math.random() - 0.5) * 0.0015,
@@ -176,11 +185,9 @@ var mouseSpeed = 0;
 
 window.addEventListener('mousemove', function (event) {
   prevMouse.copy(mouse);
-  // map screen coordinates to camera (world) coordinates so repulsion centers on the cursor
-  var left = camera.left, right = camera.right, top = camera.top, bottom = camera.bottom;
-  var wx = left + (event.clientX / window.innerWidth) * (right - left);
-  var wy = bottom + (1 - event.clientY / window.innerHeight) * (top - bottom);
-  mouse.set(wx, wy, 0);
+  var x = (event.clientX / window.innerWidth) * 2 - 1;
+  var y = -(event.clientY / window.innerHeight) * 2 + 1;
+  mouse.set(x * 5, y * 5, 0);
   // update mouse speed (world units)
   mouseSpeed = mouse.distanceTo(prevMouse);
   if (!mouseHasMoved) mouseHasMoved = true;
@@ -216,9 +223,15 @@ var detachDistance = getDetachDistance();
   // make mouseSpeed decay faster so releases respond quickly
   mouseSpeed *= 0.8;
 
+  // compute approx world distance that corresponds to 100 screen pixels at current camera
+  var px = 100; // pixels
+  var worldPerPixelX = (camera.right - camera.left) / window.innerWidth;
+  var worldGlowRadius = px * worldPerPixelX;
+
 for (var i = 0; i < particleData.length; i++) {
 var data = particleData[i];
 var particle = data.particle;
+var mat = data.material;
 var initialPosition = data.initialPosition;
 var velocity = data.velocity;
 
@@ -246,6 +259,23 @@ if (mouseHasMoved) {
 var dx = mouse.x - particle.position.x;
 var dy = mouse.y - particle.position.y;
 var distance = Math.sqrt(dx * dx + dy * dy);
+
+    // glow effect when within ~100px (worldGlowRadius)
+    if (mat) {
+      if (distance < worldGlowRadius) {
+        // glow intensity (0..1) based on proximity
+        var g = 1 - distance / worldGlowRadius;
+        mat.blending = THREE.AdditiveBlending;
+        mat.opacity = 0.35 * g + 0.65 * (1 - g); // slight brightening
+        var s = data.baseScale * (1 + 0.6 * g);
+        particle.scale.set(s, s, 1);
+      } else {
+        // restore
+        mat.blending = THREE.NormalBlending;
+        mat.opacity = data.baseOpacity;
+        particle.scale.set(data.baseScale, data.baseScale, 1);
+      }
+    }
 
 if (distance < disperseRadius && !data.dispersing && !data.attached) {
 data.dispersing = true;

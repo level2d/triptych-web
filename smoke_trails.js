@@ -35,6 +35,17 @@ if (!container) {
     document.body.appendChild(container);
 }
 
+// ensure the container is fixed fullscreen and non-interactive so it matches your CSS
+container.style.position = 'fixed';
+container.style.top = '0';
+container.style.left = '0';
+container.style.width = '100vw';
+container.style.height = '100vh';
+container.style.zIndex = '9999';
+container.style.pointerEvents = 'none';
+container.style.userSelect = 'none';
+container.style.opacity = '1';
+
 var canvas = document.getElementById('webglCanvas');
 if (!canvas) {
     canvas = document.createElement('canvas');
@@ -50,7 +61,7 @@ canvas.style.left = '0';
 canvas.style.top = '0';
 canvas.style.width = '100%';
 canvas.style.height = '100%';
-canvas.style.pointerEvents = 'auto';
+canvas.style.pointerEvents = 'none';
 
 resizeCanvas();
 
@@ -58,13 +69,14 @@ var config = {
     SIM_RESOLUTION: 128,
     DYE_RESOLUTION: 1024,
     CAPTURE_RESOLUTION: 512,
-    DENSITY_DISSIPATION: 1,
-    VELOCITY_DISSIPATION: 0.2,
+    // reduced dissipation/velocity so the effect is much more subtle
+    DENSITY_DISSIPATION: 0.98,
+    VELOCITY_DISSIPATION: 0.95,
     PRESSURE: 0.8,
     PRESSURE_ITERATIONS: 20,
-    CURL: 30,
-    SPLAT_RADIUS: 0.25,
-    SPLAT_FORCE: 6000,
+    CURL: 4,
+    SPLAT_RADIUS: 0.08,
+    SPLAT_FORCE: 900,
     SHADING: true,
     COLORFUL: true,
     COLOR_UPDATE_SPEED: 10,

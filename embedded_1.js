@@ -57,7 +57,7 @@ pointLight.position.set(0, 0, 5);
 scene.add(pointLight);
 
 // ----- particles (soft sprites for rounded dust look) -----
-var particleCount = 450;
+var particleCount = 350;
 var particles = new THREE.Group();
 scene.add(particles);
 
@@ -120,6 +120,7 @@ var oscillationAmplitude = 0.001 + Math.random() * 0.003;
   baseScale: particleSize,
   baseOpacity: mat.opacity,
   glowStart: -9999,
+  baseColor: mat.color.getHex(),
 initialPosition: initialPosition,
 velocity: new THREE.Vector3(
 (Math.random() - 0.5) * 0.0015,
@@ -289,15 +290,22 @@ var distance = Math.sqrt(dx * dx + dy * dy);
       var glowG = Math.max(proxG, repulseG);
 
       if (glowG > 0) {
-  mat.blending = THREE.AdditiveBlending;
-  // reduced opacity: baseline lower and smaller extra from glow for a dimmer, wider halo
-  mat.opacity = Math.min(1.0, 0.45 + 0.35 * glowG);
+        mat.blending = THREE.AdditiveBlending;
+        // reduced opacity: baseline lower and smaller extra from glow for a dimmer, wider halo
+        mat.opacity = Math.min(1.0, 0.45 + 0.35 * glowG);
         var s = data.baseScale * (1 + 0.6 * glowG);
         particle.scale.set(s, s, 1);
+        // if repulsion-driven glow is active, make the color white
+        if (repulseG > 0) {
+          mat.color.setHex(0xFFFFFF);
+        } else {
+          mat.color.setHex(data.baseColor);
+        }
       } else {
         mat.blending = THREE.NormalBlending;
         mat.opacity = data.baseOpacity;
         particle.scale.set(data.baseScale, data.baseScale, 1);
+        mat.color.setHex(data.baseColor);
       }
     }
 

@@ -119,6 +119,7 @@ var oscillationAmplitude = 0.001 + Math.random() * 0.003;
   material: mat,
   baseScale: particleSize,
   baseOpacity: mat.opacity,
+  glowStart: -9999,
 initialPosition: initialPosition,
 velocity: new THREE.Vector3(
 (Math.random() - 0.5) * 0.0015,
@@ -265,15 +266,35 @@ var distance = Math.sqrt(dx * dx + dy * dy);
 
     // glow effect when within ~100px (worldGlowRadius)
     if (mat) {
+      // proximity glow (0..1)
+      var proxG = 0;
       if (distance < worldGlowRadius) {
-        // glow intensity (0..1) based on proximity
-        var g = 1 - distance / worldGlowRadius;
+        proxG = 1 - distance / worldGlowRadius;
+      }
+
+      // repulsion-triggered glow: 1s full, then 2s easing out (easeOutCubic)
+      var repulseAge = Math.max(0, time - (data.glowStart || -9999));
+      var repulseG = 0;
+      if (repulseAge <= 1.0) {
+        repulseG = 1.0; // full for 1s
+      } else if (repulseAge > 1.0 && repulseAge <= 3.0) {
+        // ease out from 1 -> 0 over 2s
+        var t = (repulseAge - 1.0) / 2.0; // 0..1
+        // easeOutCubic
+        repulseG = 1 - Math.pow(1 - t, 3);
+        repulseG = 1 - repulseG; // invert so starts at 1 and eases to 0
+      }
+
+      // combine proximity and repulse glow (repulse dominates)
+      var glowG = Math.max(proxG, repulseG);
+
+      if (glowG > 0) {
         mat.blending = THREE.AdditiveBlending;
-        mat.opacity = 0.35 * g + 0.65 * (1 - g); // slight brightening
-        var s = data.baseScale * (1 + 0.6 * g);
+        // opacity baseline 0.65, + extra from glow
+        mat.opacity = Math.min(1.0, 0.65 + 0.5 * glowG);
+        var s = data.baseScale * (1 + 0.6 * glowG);
         particle.scale.set(s, s, 1);
       } else {
-        // restore
         mat.blending = THREE.NormalBlending;
         mat.opacity = data.baseOpacity;
         particle.scale.set(data.baseScale, data.baseScale, 1);
@@ -315,6 +336,8 @@ if (distance < influenceRadius) {
   data.dispersing = true;
   data.disperseTime = time;
   data.disperseDirection.set(rx / d, ry / d, 0);
+  // trigger glow on repulsion
+  data.glowStart = time;
 }
 }
 }

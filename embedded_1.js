@@ -228,7 +228,7 @@ var detachDistance = getDetachDistance();
   mouseSpeed *= 0.8;
 
   // compute approx world distance that corresponds to 100 screen pixels at current camera
-  var px = 100; // pixels
+  var px = 180; // pixels (increased glow radius)
   var worldPerPixelX = (camera.right - camera.left) / window.innerWidth;
   var worldGlowRadius = px * worldPerPixelX;
 
@@ -289,9 +289,9 @@ var distance = Math.sqrt(dx * dx + dy * dy);
       var glowG = Math.max(proxG, repulseG);
 
       if (glowG > 0) {
-        mat.blending = THREE.AdditiveBlending;
-        // opacity baseline 0.65, + extra from glow
-        mat.opacity = Math.min(1.0, 0.65 + 0.5 * glowG);
+  mat.blending = THREE.AdditiveBlending;
+  // reduced opacity: baseline lower and smaller extra from glow for a dimmer, wider halo
+  mat.opacity = Math.min(1.0, 0.45 + 0.35 * glowG);
         var s = data.baseScale * (1 + 0.6 * glowG);
         particle.scale.set(s, s, 1);
       } else {

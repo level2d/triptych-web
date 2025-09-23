@@ -211,3 +211,29 @@ const fluid = new Fluid(renderer, {
     pressure_iterations: 10,   // Lower for faster render (tradeoff: less smooth)
     // Other params from Pavel's demo for ink-like black blobs on white
 });
+
+let mouseX = 0, mouseY = 0;
+let lastMouseX = 0, lastMouseY = 0; // For velocity-based distortion
+
+document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    // Splatter fluid at cursor (intensity scales with speed for reactive feel)
+    const dx = mouseX - lastMouseX;
+    const dy = mouseY - lastMouseY;
+    fluid.splat(mouseX / window.innerWidth, mouseY / window.innerHeight, dx * 0.01, dy * 0.01, 1.0, 1.0); // RGBA for black ink
+    lastMouseX = mouseX;
+    lastMouseY = mouseY;
+});
+
+function animate() {
+    requestAnimationFrame(animate);
+    fluid.update(); // Core sim loop
+    renderer.render(fluid.scene, fluid.camera);
+}
+animate(); // Start loop
+
+window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    fluid.resize(); // If fluid lib supports it
+});

@@ -28,37 +28,46 @@ SOFTWARE.
 // Simulation code
 
 // attach canvas to #custom-embed-div so it follows your CSS
-var container = document.getElementById('custom-embed-div');
+var containerId = window.__fluidDistortionContainerId || 'custom-embed-div';
+var canvasId = window.__fluidDistortionCanvasId || 'webglCanvas';
+
+var container = document.getElementById(containerId);
+var containerCreated = false;
 if (!container) {
     container = document.createElement('div');
-    container.id = 'custom-embed-div';
+    container.id = containerId;
     document.body.appendChild(container);
+    containerCreated = true;
 }
 
-// ensure the container is fixed fullscreen and non-interactive so it matches your CSS
-container.style.position = 'fixed';
-container.style.top = '0';
-container.style.left = '0';
-container.style.width = '100vw';
-container.style.height = '100vh';
-container.style.zIndex = '9999';
-container.style.pointerEvents = 'none';
-container.style.userSelect = 'none';
-container.style.opacity = '1';
+if (containerCreated) {
+    container.style.position = 'fixed';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.width = '100vw';
+    container.style.height = '100vh';
+    container.style.zIndex = '9999';
+    container.style.pointerEvents = 'none';
+    container.style.userSelect = 'none';
+    container.style.opacity = '1';
+} else {
+    if (!container.style.pointerEvents) {
+        container.style.pointerEvents = 'none';
+    }
+}
 
-var canvas = document.getElementById('webglCanvas');
+var canvas = document.getElementById(canvasId);
 if (!canvas) {
     canvas = document.createElement('canvas');
-    canvas.id = 'webglCanvas';
+    canvas.id = canvasId;
     container.appendChild(canvas);
 } else if (canvas.parentNode !== container) {
     container.appendChild(canvas);
 }
 
-// ensure canvas fills the container (matches the CSS you provided)
-canvas.style.position = 'absolute';
-canvas.style.left = '0';
-canvas.style.top = '0';
+canvas.style.position = canvas.style.position || 'absolute';
+canvas.style.left = canvas.style.left || '0';
+canvas.style.top = canvas.style.top || '0';
 canvas.style.width = '100%';
 canvas.style.height = '100%';
 canvas.style.pointerEvents = 'none';

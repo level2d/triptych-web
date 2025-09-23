@@ -10,6 +10,9 @@
   }
   window.__fluidDistortionBootstrapped = true;
 
+  window.__fluidDistortionContainerId = 'fluid-distortion';
+  window.__fluidDistortionCanvasId = 'fluid-distortion-canvas';
+
   var currentScript = document.currentScript;
   var baseForUrl = currentScript && currentScript.src ? currentScript.src : window.location.href;
   var smokeTrailsUrl;

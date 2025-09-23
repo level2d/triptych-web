@@ -961,16 +961,54 @@ function correctRadius (radius) {
     return radius;
 }
 
-canvas.addEventListener('mouseenter', function (e) {
-    var pointer = pointers[0];
-    var posX = scaleByPixelRatio(e.offsetX);
-    var posY = scaleByPixelRatio(e.offsetY);
-    updatePointerDownData(pointer, -1, posX, posY);
+var HOVER_POINTER_ID = -9999;
+var hoverPointer = pointers[0];
+var hoverActive = false;
+
+function getHoverPointerPosition (clientX, clientY) {
+    var rect = canvas.getBoundingClientRect();
+    var x = clientX - rect.left;
+    var y = clientY - rect.top;
+    return {
+        inside: x >= 0 && x <= rect.width && y >= 0 && y <= rect.height,
+        posX: scaleByPixelRatio(x),
+        posY: scaleByPixelRatio(y)
+    };
+}
+
+function deactivateHoverPointer () {
+    if (!hoverActive) { return; }
+    updatePointerUpData(hoverPointer);
+    hoverPointer.id = -1;
+    hoverActive = false;
+}
+
+function updateHoverPointerFromClient (clientX, clientY) {
+    var coords = getHoverPointerPosition(clientX, clientY);
+    if (!coords.inside) {
+        deactivateHoverPointer();
+        return;
+    }
+    if (!hoverActive) {
+        updatePointerDownData(hoverPointer, HOVER_POINTER_ID, coords.posX, coords.posY);
+        hoverActive = true;
+        return;
+    }
+    updatePointerMoveData(hoverPointer, coords.posX, coords.posY);
+}
+
+window.addEventListener('mousemove', function (e) {
+    updateHoverPointerFromClient(e.clientX, e.clientY);
 });
 
-canvas.addEventListener('mouseleave', function () {
-    updatePointerUpData(pointers[0]);
+window.addEventListener('mouseout', function (e) {
+    if (!e.relatedTarget) {
+        deactivateHoverPointer();
+    }
 });
+
+window.addEventListener('scroll', deactivateHoverPointer);
+window.addEventListener('blur', deactivateHoverPointer);
 
 canvas.addEventListener('mousedown', function (e) {
     var posX = scaleByPixelRatio(e.offsetX);
@@ -981,18 +1019,14 @@ canvas.addEventListener('mousedown', function (e) {
     updatePointerDownData(pointer, -1, posX, posY);
 });
 
-canvas.addEventListener('mousemove', function (e) {
-    var pointer = pointers[0];
-    var posX = scaleByPixelRatio(e.offsetX);
-    var posY = scaleByPixelRatio(e.offsetY);
-    if (!pointer.down) {
-        updatePointerDownData(pointer, -1, posX, posY);
-    }
-    updatePointerMoveData(pointer, posX, posY);
-});
-
 window.addEventListener('mouseup', function () {
-    updatePointerUpData(pointers[0]);
+    deactivateHoverPointer();
+    pointers.forEach(function (pointer) {
+        if (pointer.down && pointer.id !== HOVER_POINTER_ID) {
+            updatePointerUpData(pointer);
+            pointer.id = -1;
+        }
+    });
 });
 
 canvas.addEventListener('touchstart', function (e) {

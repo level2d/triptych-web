@@ -70,7 +70,7 @@ canvas.style.left = canvas.style.left || '0';
 canvas.style.top = canvas.style.top || '0';
 canvas.style.width = '100%';
 canvas.style.height = '100%';
-canvas.style.pointerEvents = 'none';
+canvas.style.pointerEvents = 'auto';
 
 resizeCanvas();
 
@@ -961,6 +961,17 @@ function correctRadius (radius) {
     return radius;
 }
 
+canvas.addEventListener('mouseenter', function (e) {
+    var pointer = pointers[0];
+    var posX = scaleByPixelRatio(e.offsetX);
+    var posY = scaleByPixelRatio(e.offsetY);
+    updatePointerDownData(pointer, -1, posX, posY);
+});
+
+canvas.addEventListener('mouseleave', function () {
+    updatePointerUpData(pointers[0]);
+});
+
 canvas.addEventListener('mousedown', function (e) {
     var posX = scaleByPixelRatio(e.offsetX);
     var posY = scaleByPixelRatio(e.offsetY);
@@ -972,9 +983,11 @@ canvas.addEventListener('mousedown', function (e) {
 
 canvas.addEventListener('mousemove', function (e) {
     var pointer = pointers[0];
-    if (!pointer.down) { return; }
     var posX = scaleByPixelRatio(e.offsetX);
     var posY = scaleByPixelRatio(e.offsetY);
+    if (!pointer.down) {
+        updatePointerDownData(pointer, -1, posX, posY);
+    }
     updatePointerMoveData(pointer, posX, posY);
 });
 

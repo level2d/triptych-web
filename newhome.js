@@ -1,3 +1,9 @@
+// Assuming your canvas has id="webgl-canvas"
+const canvas = document.getElementById('webgl-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap DPR for perf on high-res screens
+
 /* Refs
 https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Constants
 http://www.cse.chalmers.se/edu/year/2015/course/TDA361/Advanced%20Computer%20Graphics/GpuGems-FluidDynamics.pdf
@@ -198,3 +204,10 @@ module.exports = class Fluid {
      */
     setDitherURL(url){ setDitherURL(url); }
 };
+
+const fluid = new Fluid(renderer, { 
+    density_dissipation: 0.97, // Tweak for less CPU use
+    velocity_dissipation: 0.98,
+    pressure_iterations: 10,   // Lower for faster render (tradeoff: less smooth)
+    // Other params from Pavel's demo for ink-like black blobs on white
+});

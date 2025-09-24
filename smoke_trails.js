@@ -103,7 +103,7 @@ var config = {
     SUNRAYS_WEIGHT: 0.2,
 }
 
-var TRAIL_COLOR = { r: 175 / 255, g: 0, b: 241 / 255 };
+var TRAIL_COLOR = { r: 175, g: 0, b: 241 };
 
 function pointerPrototype () {
     this.id = -1;
@@ -154,7 +154,7 @@ function getWebGLContext (canvas) {
         supportLinearFiltering = gl.getExtension('OES_texture_half_float_linear');
     }
 
-    gl.clearColor(0.0, 0.0, 0.0, 0.1);
+    gl.clearColor(0.0, 0.0, 0.0, 0.5);
 
     var halfFloatTexType = isWebGL2 ? gl.HALF_FLOAT : halfFloat.HALF_FLOAT_OES;
     var formatRGBA;

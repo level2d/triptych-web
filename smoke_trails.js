@@ -105,6 +105,10 @@ var config = {
 
 var TRAIL_COLOR = { r: 175 / 255, g: 0 / 255, b: 241 / 255 };
 
+var BLOOM_COLOR = { r: 1, g: 1, b: 1 };
+var BLOOM_INTENSITY = 4.0;
+var BLOOM_RANDOM_INTENSITY = 6.0;
+
 function pointerPrototype () {
     this.id = -1;
     this.texcoordX = 0;
@@ -654,7 +658,7 @@ function updateKeywords () {
 
 updateKeywords();
 initFramebuffers();
-multipleSplats(parseInt(Math.random() * 20) + 5);
+multipleSplats(parseInt(Math.random() * 20) + 5, true);
 
 var lastUpdateTime = Date.now();
 var colorUpdateTimer = 0.0;
@@ -927,12 +931,20 @@ function splatPointer (pointer) {
     splat(pointer.texcoordX, pointer.texcoordY, dx, dy, pointer.color);
 }
 
-function multipleSplats (amount) {
+function multipleSplats (amount, useBloomColor) {
     for (var i = 0; i < amount; i++) {
-        var color = generateColor();
-        color.r *= 6.0;
-        color.g *= 6.0;
-        color.b *= 6.0;
+        var color;
+        if (useBloomColor) {
+            color = { r: BLOOM_COLOR.r, g: BLOOM_COLOR.g, b: BLOOM_COLOR.b };
+            color.r *= BLOOM_INTENSITY;
+            color.g *= BLOOM_INTENSITY;
+            color.b *= BLOOM_INTENSITY;
+        } else {
+            color = generateColor();
+            color.r *= BLOOM_RANDOM_INTENSITY;
+            color.g *= BLOOM_RANDOM_INTENSITY;
+            color.b *= BLOOM_RANDOM_INTENSITY;
+        }
         var x = Math.random();
         var y = Math.random();
         var dx = 1000 * (Math.random() - 0.5);

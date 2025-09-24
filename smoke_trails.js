@@ -87,7 +87,7 @@ var config = {
     SPLAT_RADIUS: 0.08,
     SPLAT_FORCE: 900,
     SHADING: true,
-    COLORFUL: false,
+    COLORFUL: true,
     COLOR_UPDATE_SPEED: 10,
     PAUSED: false,
     BACK_COLOR: { r: 0, g: 0, b: 0 },
@@ -113,7 +113,7 @@ function pointerPrototype () {
     this.deltaY = 0;
     this.down = false;
     this.moved = false;
-    this.color = { r: 175 / 255, g: 0, b: 241 / 255 };
+    this.color = { r: TRAIL_COLOR.r, g: TRAIL_COLOR.g, b: TRAIL_COLOR.b };
 }
 
 var pointers = [];
@@ -961,6 +961,8 @@ function correctRadius (radius) {
     return radius;
 }
 
+var TRAIL_COLOR = { r: 175 / 255, g: 0, b: 241 / 255 };
+
 var HOVER_POINTER_ID = -9999;
 var hoverPointer = pointers[0];
 var hoverActive = false;
@@ -1082,7 +1084,7 @@ function updatePointerDownData (pointer, id, posX, posY) {
     pointer.prevTexcoordY = pointer.texcoordY;
     pointer.deltaX = 0;
     pointer.deltaY = 0;
-    pointer.color = generateColor();
+    pointer.color = { r: TRAIL_COLOR.r, g: TRAIL_COLOR.g, b: TRAIL_COLOR.b };
 }
 
 function updatePointerMoveData (pointer, posX, posY) {
@@ -1112,7 +1114,11 @@ function correctDeltaY (delta) {
 }
 
 function generateColor () {
-    return { r: 175 / 255, g: 0, b: 241 / 255 };
+    var c = HSVtoRGB(Math.random(), 1.0, 1.0);
+    c.r *= 0.15;
+    c.g *= 0.15;
+    c.b *= 0.15;
+    return c;
 }
 
 function HSVtoRGB (h, s, v) {

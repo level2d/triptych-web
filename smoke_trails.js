@@ -83,9 +83,9 @@ var FLUID_DEFAULT_INTENSITY = 0.5;
 var FLUID_MIN_SCALE = 12;
 var FLUID_MAX_SCALE = 64;
 var activeFluidElement = null;
+var elementFluidState = new WeakMap();
 
 var svgNS = 'http://www.w3.org/2000/svg';
-var fluidFilterCache = Object.create(null);
 var fluidFilterDefs = ensureFluidFilterDefs();
 
 function ensureFluidFilterDefs () {
@@ -120,67 +120,139 @@ function clampFluidIntensity (value) {
     return numeric;
 }
 
-function getOrCreateFluidFilterId (intensity) {
-    var clamped = clampFluidIntensity(intensity);
-    var scale = FLUID_MIN_SCALE + clamped * (FLUID_MAX_SCALE - FLUID_MIN_SCALE);
-    var key = scale.toFixed(2);
-    if (fluidFilterCache[key]) { return fluidFilterCache[key]; }
-    var filterId = 'fluid-distortion-' + key.replace('.', '-');
-    var filter = document.createElementNS(svgNS, 'filter');
-    filter.setAttribute('id', filterId);
-    filter.setAttribute('x', '-20%');
-    filter.setAttribute('y', '-20%');
-    filter.setAttribute('width', '140%');
-    filter.setAttribute('height', '140%');
+function ensureElementFilter (element, intensity) {
+    var state = elementFluidState.get(element);
+    var maxIntensity = clampFluidIntensity(intensity);
+    if (!state) {
+        var filterId = 'fluid-distortion-' + Math.random().toString(36).slice(2);
+        var filter = document.createElementNS(svgNS, 'filter');
+        filter.setAttribute('id', filterId);
+        filter.setAttribute('x', '-20%');
+        filter.setAttribute('y', '-20%');
+        filter.setAttribute('width', '140%');
+        filter.setAttribute('height', '140%');
 
-    var turbulence = document.createElementNS(svgNS, 'feTurbulence');
-    turbulence.setAttribute('type', 'fractalNoise');
-    turbulence.setAttribute('baseFrequency', '0.02');
-    turbulence.setAttribute('numOctaves', '2');
-    turbulence.setAttribute('seed', Math.floor(Math.random() * 1000));
-    turbulence.setAttribute('result', 'fluidNoise');
-    var animate = document.createElementNS(svgNS, 'animate');
-    animate.setAttribute('attributeName', 'baseFrequency');
-    animate.setAttribute('values', '0.012;0.02;0.012');
-    animate.setAttribute('dur', '6s');
-    animate.setAttribute('repeatCount', 'indefinite');
-    turbulence.appendChild(animate);
+        var turbulence = document.createElementNS(svgNS, 'feTurbulence');
+        turbulence.setAttribute('type', 'fractalNoise');
+        turbulence.setAttribute('numOctaves', '2');
+        turbulence.setAttribute('seed', Math.floor(Math.random() * 1000));
+        turbulence.setAttribute('baseFrequency', '0.012');
+        turbulence.setAttribute('result', 'fluidNoise');
 
-    var displacement = document.createElementNS(svgNS, 'feDisplacementMap');
-    displacement.setAttribute('in', 'SourceGraphic');
-    displacement.setAttribute('in2', 'fluidNoise');
-    displacement.setAttribute('scale', scale.toString());
-    displacement.setAttribute('xChannelSelector', 'R');
-    displacement.setAttribute('yChannelSelector', 'G');
+        var displacement = document.createElementNS(svgNS, 'feDisplacementMap');
+        displacement.setAttribute('in', 'SourceGraphic');
+        displacement.setAttribute('in2', 'fluidNoise');
+        displacement.setAttribute('scale', '0');
+        displacement.setAttribute('xChannelSelector', 'R');
+        displacement.setAttribute('yChannelSelector', 'G');
 
-    filter.appendChild(turbulence);
-    filter.appendChild(displacement);
-    fluidFilterDefs.appendChild(filter);
-    fluidFilterCache[key] = filterId;
-    return filterId;
-}
+        filter.appendChild(turbulence);
+        filter.appendChild(displacement);
+        fluidFilterDefs.appendChild(filter);
 
-function applyFluidFilter (element, intensity) {
-    var filterId = getOrCreateFluidFilterId(intensity);
-    if (element.dataset.fluidOriginalFilter === undefined) {
-        element.dataset.fluidOriginalFilter = element.style.filter || '';
+        if (element.dataset.fluidOriginalFilter === undefined) {
+            element.dataset.fluidOriginalFilter = element.style.filter || '';
+        }
+        var filterRef = 'url(#' + filterId + ')';
+        if (!element.style.filter || element.style.filter.indexOf(filterRef) === -1) {
+            element.style.filter = element.style.filter ? (element.style.filter + ' ' + filterRef).trim() : filterRef;
+        }
+        element.classList.add('fluid-distorting');
+
+        state = {
+            element: element,
+            filterId: filterId,
+            filterElement: filter,
+            turbulenceNode: turbulence,
+            displacementNode: displacement,
+            maxIntensity: maxIntensity,
+            current: 0,
+            target: 0,
+            raf: null,
+            cleanupWhenSettled: false
+        };
+        elementFluidState.set(element, state);
+    } else {
+        state.maxIntensity = maxIntensity;
+        state.cleanupWhenSettled = false;
+        var filterRef = 'url(#' + state.filterId + ')';
+        if (!element.style.filter || element.style.filter.indexOf(filterRef) === -1) {
+            element.style.filter = element.style.filter ? (element.style.filter + ' ' + filterRef).trim() : filterRef;
+        }
+        element.classList.add('fluid-distorting');
     }
-    var existing = element.dataset.fluidOriginalFilter;
-    var newFilter = 'url(#' + filterId + ')';
-    element.style.filter = existing ? existing + ' ' + newFilter : newFilter;
-    element.classList.add('fluid-distorting');
+    return state;
 }
 
-function clearFluidFilter (element) {
-    if (!element) { return; }
+function animateFluidState (state) {
+    var diff = state.target - state.current;
+    state.current += diff * 0.18;
+    if (Math.abs(diff) < 0.002) {
+        state.current = state.target;
+    }
+
+    var scale = FLUID_MIN_SCALE + (FLUID_MAX_SCALE - FLUID_MIN_SCALE) * state.current * state.maxIntensity;
+    state.displacementNode.setAttribute('scale', scale.toFixed(2));
+    var baseFrequency = 0.01 + state.current * 0.05;
+    state.turbulenceNode.setAttribute('baseFrequency', baseFrequency.toFixed(4));
+
+    if (state.current !== state.target || (state.cleanupWhenSettled && state.current > 0.001)) {
+        state.raf = requestAnimationFrame(function () { animateFluidState(state); });
+    } else {
+        state.raf = null;
+        if (state.current === 0 && state.cleanupWhenSettled) {
+            cleanupElementFilter(state);
+        }
+    }
+}
+
+function setFluidTarget (state, normalizedTarget, cleanup) {
+    state.target = Math.max(0, Math.min(1, normalizedTarget));
+    if (cleanup) {
+        state.cleanupWhenSettled = true;
+    }
+    if (state.raf === null) {
+        state.raf = requestAnimationFrame(function () { animateFluidState(state); });
+    }
+}
+
+function cleanupElementFilter (state) {
+    var element = state.element;
     var original = element.dataset.fluidOriginalFilter;
     if (original !== undefined) {
         element.style.filter = original;
-        delete element.dataset.fluidOriginalFilter;
+        if (!original) {
+            element.style.removeProperty('filter');
+        }
     } else {
         element.style.removeProperty('filter');
     }
     element.classList.remove('fluid-distorting');
+    if (state.filterElement && state.filterElement.parentNode) {
+        state.filterElement.parentNode.removeChild(state.filterElement);
+    }
+    state.cleanupWhenSettled = false;
+    elementFluidState.delete(element);
+}
+
+function applyFluidFilter (element, intensity) {
+    var state = ensureElementFilter(element, intensity);
+    state.cleanupWhenSettled = false;
+    if (state.current < 0.25) {
+        setFluidTarget(state, 0.25, false);
+    } else if (state.raf === null) {
+        state.raf = requestAnimationFrame(function () { animateFluidState(state); });
+    }
+}
+
+function clearFluidFilter (element) {
+    if (!element) { return; }
+    var state = elementFluidState.get(element);
+    if (!state) { return; }
+    setFluidTarget(state, 0, true);
+    if (activeFluidElement === element) {
+        activeFluidElement = null;
+    }
 }
 
 function onFluidEnter (event) {
@@ -191,14 +263,19 @@ function onFluidEnter (event) {
     }
     activeFluidElement = element;
     applyFluidFilter(element, intensity);
+    if (event.type === 'touchstart') {
+        var state = elementFluidState.get(element);
+        if (state) {
+            setFluidTarget(state, 0.6, false);
+        }
+    } else {
+        updateActiveFluidFromPointer();
+    }
 }
 
 function onFluidLeave (event) {
     var element = event.currentTarget;
     clearFluidFilter(element);
-    if (activeFluidElement === element) {
-        activeFluidElement = null;
-    }
 }
 
 function bindFluidElement (element) {
@@ -226,6 +303,38 @@ function scanForFluidElements (root) {
     }
 }
 
+function updateActiveFluidFromPointer () {
+    if (!activeFluidElement) { return; }
+    var state = elementFluidState.get(activeFluidElement);
+    if (!state) { return; }
+    var dx = hoverPointer ? hoverPointer.deltaX || 0 : 0;
+    var dy = hoverPointer ? hoverPointer.deltaY || 0 : 0;
+    var speed = Math.sqrt(dx * dx + dy * dy);
+    var normalized = Math.min(1, speed * 800);
+    var target = Math.max(0.25, normalized);
+    setFluidTarget(state, target, false);
+}
+
+function boostActiveFluidFromTouchMovement (touches) {
+    if (!activeFluidElement) { return; }
+    var state = elementFluidState.get(activeFluidElement);
+    if (!state) { return; }
+    if (!touches || touches.length === 0) { return; }
+    var maxDelta = 0;
+    for (var i = 0; i < touches.length; i++) {
+        var pointer = pointers[i + 1];
+        if (!pointer || !pointer.down) { continue; }
+        var dx = pointer.deltaX || 0;
+        var dy = pointer.deltaY || 0;
+        var magnitude = Math.sqrt(dx * dx + dy * dy);
+        if (magnitude > maxDelta) { maxDelta = magnitude; }
+    }
+    if (maxDelta === 0) { return; }
+    var normalized = Math.min(1, maxDelta * 800);
+    var target = Math.max(0.3, normalized);
+    setFluidTarget(state, target, false);
+}
+
 scanForFluidElements(document);
 
 if (typeof MutationObserver !== 'undefined') {
@@ -242,17 +351,13 @@ if (typeof MutationObserver !== 'undefined') {
                         if (!removed || removed.nodeType !== 1) { continue; }
                         if (removed === activeFluidElement || (removed.contains && removed.contains(activeFluidElement))) {
                             clearFluidFilter(activeFluidElement);
-                            activeFluidElement = null;
                             break;
                         }
                     }
                 }
             } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-' + FLUID_ATTRIBUTE) {
                 if (!mutation.target.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
-                    if (mutation.target === activeFluidElement) {
-                        clearFluidFilter(activeFluidElement);
-                        activeFluidElement = null;
-                    }
+                    clearFluidFilter(mutation.target);
                 } else {
                     bindFluidElement(mutation.target);
                 }
@@ -266,7 +371,6 @@ if (typeof MutationObserver !== 'undefined') {
         subtree: true
     });
 }
-
 var config = {
     SIM_RESOLUTION: 128,
     DYE_RESOLUTION: 1024,
@@ -1224,13 +1328,13 @@ function updateHoverPointerFromClient (clientX, clientY) {
 
 window.addEventListener('mousemove', function (e) {
     updateHoverPointerFromClient(e.clientX, e.clientY);
+    updateActiveFluidFromPointer();
 });
 
 window.addEventListener('mouseout', function (e) {
     if (!e.relatedTarget) {
         if (activeFluidElement) {
             clearFluidFilter(activeFluidElement);
-            activeFluidElement = null;
         }
         deactivateHoverPointer();
     }
@@ -1239,7 +1343,6 @@ window.addEventListener('mouseout', function (e) {
 window.addEventListener('scroll', function () {
     if (activeFluidElement) {
         clearFluidFilter(activeFluidElement);
-        activeFluidElement = null;
     }
     deactivateHoverPointer();
 });
@@ -1247,7 +1350,6 @@ window.addEventListener('scroll', function () {
 window.addEventListener('blur', function () {
     if (activeFluidElement) {
         clearFluidFilter(activeFluidElement);
-        activeFluidElement = null;
     }
     deactivateHoverPointer();
 });
@@ -1293,6 +1395,7 @@ canvas.addEventListener('touchmove', function (e) {
         var posY = scaleByPixelRatio(touches[i].pageY);
         updatePointerMoveData(pointer, posX, posY);
     }
+    boostActiveFluidFromTouchMovement(touches);
 }, false);
 
 window.addEventListener('touchend', function (e) {

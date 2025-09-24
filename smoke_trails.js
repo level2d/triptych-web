@@ -100,7 +100,7 @@ var config = {
     BLOOM_SOFT_KNEE: 0.7,
     SUNRAYS: true,
     SUNRAYS_RESOLUTION: 196,
-    SUNRAYS_WEIGHT: 0.3,
+    SUNRAYS_WEIGHT: 0.2,
 }
 
 var TRAIL_COLOR = { r: 175 / 255, g: 0, b: 241 / 255 };

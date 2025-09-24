@@ -103,6 +103,8 @@ var config = {
     SUNRAYS_WEIGHT: 1.0,
 }
 
+var TRAIL_COLOR = { r: 175 / 255, g: 0, b: 241 / 255 };
+
 function pointerPrototype () {
     this.id = -1;
     this.texcoordX = 0;
@@ -960,8 +962,6 @@ function correctRadius (radius) {
         { radius *= aspectRatio; }
     return radius;
 }
-
-var TRAIL_COLOR = { r: 175 / 255, g: 0, b: 241 / 255 };
 
 var HOVER_POINTER_ID = -9999;
 var hoverPointer = pointers[0];

@@ -539,14 +539,14 @@ var config = {
     SUNRAYS_WEIGHT: 0.2,
 }
 
-var TRAIL_COLOR = { r: 175 / 255, g: 0 / 255, b: 241 / 255 };
+var TRAIL_COLOR = { r: (175 / 255) * 0.45, g: 0, b: (241 / 255) * 0.45 };
 
 var BLOOM_COLOR = { r: 1, g: 1, b: 1 };
-var BLOOM_INTENSITY = 4.0;
-var BLOOM_RANDOM_INTENSITY = 6.0;
+var BLOOM_INTENSITY = 2.0;
+var BLOOM_RANDOM_INTENSITY = 3.2;
 
 var CURSOR_HIGHLIGHT_COLOR = { r: 1, g: 1, b: 1 };
-var CURSOR_HIGHLIGHT_INTENSITY = 1.0;
+var CURSOR_HIGHLIGHT_INTENSITY = 0.6;
 var CURSOR_HIGHLIGHT_RADIUS_SCALE = 0.45;
 
 function pointerPrototype () {

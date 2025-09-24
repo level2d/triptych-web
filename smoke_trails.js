@@ -87,7 +87,7 @@ var config = {
     SPLAT_RADIUS: 0.08,
     SPLAT_FORCE: 900,
     SHADING: true,
-    COLORFUL: true,
+    COLORFUL: false,
     COLOR_UPDATE_SPEED: 10,
     PAUSED: false,
     BACK_COLOR: { r: 0, g: 0, b: 0 },
@@ -113,7 +113,7 @@ function pointerPrototype () {
     this.deltaY = 0;
     this.down = false;
     this.moved = false;
-    this.color = [30, 0, 300];
+    this.color = { r: 175 / 255, g: 0, b: 241 / 255 };
 }
 
 var pointers = [];
@@ -1112,11 +1112,7 @@ function correctDeltaY (delta) {
 }
 
 function generateColor () {
-    var c = HSVtoRGB(Math.random(), 1.0, 1.0);
-    c.r *= 0.15;
-    c.g *= 0.15;
-    c.b *= 0.15;
-    return c;
+    return { r: 175 / 255, g: 0, b: 241 / 255 };
 }
 
 function HSVtoRGB (h, s, v) {

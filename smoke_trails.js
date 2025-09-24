@@ -378,7 +378,7 @@ function stampFluidMask (state, relX, relY, intensity) {
 
 function onFluidEnter (event) {
     var element = event.currentTarget;
-    var intensity = element.getAttribute('data-' + FLUID_ATTRIBUTE);
+    var intensity = element.getAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE);
     if (activeFluidElement && activeFluidElement !== element) {
         clearFluidFilter(activeFluidElement);
     }
@@ -404,7 +404,7 @@ function onFluidLeave (event) {
 
 function bindFluidElement (element) {
     if (!element || element.nodeType !== 1) { return; }
-    if (!element.hasAttribute('data-' + FLUID_ATTRIBUTE)) { return; }
+    if (!element.hasAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE)) { return; }
     if (element[FLUID_BOUND_FLAG]) { return; }
     element[FLUID_BOUND_FLAG] = true;
     element.addEventListener('mouseenter', onFluidEnter);
@@ -416,11 +416,11 @@ function bindFluidElement (element) {
 
 function scanForFluidElements (root) {
     if (!root) { return; }
-    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
+    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE)) {
         bindFluidElement(root);
     }
     if (root.querySelectorAll) {
-        var matches = root.querySelectorAll('[data-' + FLUID_ATTRIBUTE + ']');
+        var matches = root.querySelectorAll('[data-fluid-opacity' + FLUID_ATTRIBUTE + ']');
         for (var i = 0; i < matches.length; i++) {
             bindFluidElement(matches[i]);
         }
@@ -494,8 +494,8 @@ if (typeof MutationObserver !== 'undefined') {
                         }
                     }
                 }
-            } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-' + FLUID_ATTRIBUTE) {
-                if (!mutation.target.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
+            } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-fluid-opacity' + FLUID_ATTRIBUTE) {
+                if (!mutation.target.hasAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE)) {
                     clearFluidFilter(mutation.target);
                 } else {
                     bindFluidElement(mutation.target);
@@ -505,7 +505,7 @@ if (typeof MutationObserver !== 'undefined') {
     });
     fluidObserver.observe(document.documentElement, {
         attributes: true,
-        attributeFilter: ['data-' + FLUID_ATTRIBUTE],
+        attributeFilter: ['data-fluid-opacity' + FLUID_ATTRIBUTE],
         childList: true,
         subtree: true
     });

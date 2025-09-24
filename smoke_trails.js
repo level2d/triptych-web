@@ -44,22 +44,15 @@ if (containerCreated) {
     container.style.position = 'fixed';
     container.style.top = '0';
     container.style.left = '0';
+    container.style.width = '100vw';
+    container.style.height = '100vh';
     container.style.zIndex = '9999';
     container.style.pointerEvents = 'none';
     container.style.userSelect = 'none';
-    container.style.opacity = '0';
-    container.style.width = '100vw';
-    container.style.height = '100vh';
-    container.style.overflow = 'hidden';
-    if (container.classList) {
-        container.classList.remove('fluid-active');
-    }
+    container.style.opacity = '1';
 } else {
     if (!container.style.pointerEvents) {
         container.style.pointerEvents = 'none';
-    }
-    if (!container.style.position) {
-        container.style.position = 'fixed';
     }
 }
 
@@ -77,157 +70,102 @@ canvas.style.left = canvas.style.left || '0';
 canvas.style.top = canvas.style.top || '0';
 canvas.style.width = '100%';
 canvas.style.height = '100%';
-canvas.style.pointerEvents = 'none';
-canvas.style.borderRadius = canvas.style.borderRadius || 'inherit';
+canvas.style.pointerEvents = 'auto';
 
 resizeCanvas();
 
-var FLUID_ATTRIBUTE = 'fluid';
-var FLUID_BOUND_FLAG = '__fluidBound';
-var FLUID_ACTIVE_CLASS = 'fluid-active';
-var activeFluidElement = null;
-var fluidSyncHandle = null;
-var lastFluidRect = null;
+var FLUID_OPACITY_ATTRIBUTE = 'fluid-opacity';
+var FLUID_OPACITY_BOUND_FLAG = '__fluidOpacityBound';
+var baseFluidOpacity = container.style.opacity || window.getComputedStyle(container).opacity || '1';
+var activeOpacityElement = null;
 
-function activateFluidForElement (element) {
-    if (activeFluidElement === element) { return; }
-    activeFluidElement = element;
-    if (container.classList) {
-        container.classList.add(FLUID_ACTIVE_CLASS);
-    }
-    var attrOpacity = element.getAttribute('data-fluid-opacity');
-    container.style.opacity = attrOpacity || '1';
-    var computedStyle = window.getComputedStyle(element);
-    container.style.borderRadius = computedStyle.borderRadius;
-    canvas.style.borderRadius = computedStyle.borderRadius;
-    lastFluidRect = null;
-    syncFluidContainer();
-    requestFluidContainerSync();
+function clampFluidOpacity (value) {
+    var numeric = parseFloat(value);
+    if (!isFinite(numeric)) { return baseFluidOpacity; }
+    if (numeric < 0) { numeric = 0; }
+    if (numeric > 1) { numeric = 1; }
+    return numeric.toString();
 }
 
-function deactivateFluid () {
-    if (!activeFluidElement) { return; }
-    activeFluidElement = null;
-    if (container.classList) {
-        container.classList.remove(FLUID_ACTIVE_CLASS);
-    }
-    container.style.opacity = '0';
-    container.style.borderRadius = '';
-    canvas.style.borderRadius = '';
-    if (fluidSyncHandle !== null) {
-        cancelAnimationFrame(fluidSyncHandle);
-        fluidSyncHandle = null;
-    }
-    lastFluidRect = null;
-    deactivateHoverPointer();
+function applyFluidOpacity (value) {
+    container.style.opacity = value;
 }
 
-function syncFluidContainer () {
-    if (!activeFluidElement) { return; }
-    var rect = activeFluidElement.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) { return; }
-    container.style.top = rect.top + 'px';
-    container.style.left = rect.left + 'px';
-    container.style.width = rect.width + 'px';
-    container.style.height = rect.height + 'px';
-    if (!lastFluidRect || lastFluidRect.width !== rect.width || lastFluidRect.height !== rect.height) {
-        lastFluidRect = { width: rect.width, height: rect.height };
-        resizeCanvas();
-    }
+function handleFluidOpacityEnter (event) {
+    activeOpacityElement = event.currentTarget;
+    var attrValue = activeOpacityElement.getAttribute('data-' + FLUID_OPACITY_ATTRIBUTE);
+    applyFluidOpacity(clampFluidOpacity(attrValue));
 }
 
-function requestFluidContainerSync () {
-    if (!activeFluidElement) { return; }
-    if (fluidSyncHandle !== null) { return; }
-    var step = function () {
-        if (!activeFluidElement) {
-            fluidSyncHandle = null;
-            return;
-        }
-        syncFluidContainer();
-        fluidSyncHandle = requestAnimationFrame(step);
-    };
-    fluidSyncHandle = requestAnimationFrame(step);
+function handleFluidOpacityLeave (event) {
+    if (activeOpacityElement !== event.currentTarget) { return; }
+    activeOpacityElement = null;
+    applyFluidOpacity(baseFluidOpacity);
 }
 
-function onFluidMouseEnter (event) {
-    activateFluidForElement(event.currentTarget);
-    syncFluidContainer();
-    updateHoverPointerFromClient(event.clientX, event.clientY);
-}
-
-function onFluidMouseMove (event) {
-    if (activeFluidElement !== event.currentTarget) { return; }
-    requestFluidContainerSync();
-}
-
-function onFluidMouseLeave (event) {
-    if (activeFluidElement !== event.currentTarget) { return; }
-    deactivateFluid();
-}
-
-function bindFluidElement (element) {
+function bindFluidOpacityElement (element) {
     if (!element || element.nodeType !== 1) { return; }
-    if (element[FLUID_BOUND_FLAG]) { return; }
-    element[FLUID_BOUND_FLAG] = true;
-    element.addEventListener('mouseenter', onFluidMouseEnter);
-    element.addEventListener('mousemove', onFluidMouseMove);
-    element.addEventListener('mouseleave', onFluidMouseLeave);
+    if (!element.hasAttribute('data-' + FLUID_OPACITY_ATTRIBUTE)) { return; }
+    if (element[FLUID_OPACITY_BOUND_FLAG]) { return; }
+    element[FLUID_OPACITY_BOUND_FLAG] = true;
+    element.addEventListener('mouseenter', handleFluidOpacityEnter);
+    element.addEventListener('mouseleave', handleFluidOpacityLeave);
 }
 
-function scanForFluidElements (root) {
+function scanForFluidOpacityElements (root) {
     if (!root) { return; }
-    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
-        bindFluidElement(root);
+    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('data-' + FLUID_OPACITY_ATTRIBUTE)) {
+        bindFluidOpacityElement(root);
     }
     if (root.querySelectorAll) {
-        var matches = root.querySelectorAll('[data-' + FLUID_ATTRIBUTE + ']');
+        var matches = root.querySelectorAll('[data-' + FLUID_OPACITY_ATTRIBUTE + ']');
         for (var i = 0; i < matches.length; i++) {
-            bindFluidElement(matches[i]);
+            bindFluidOpacityElement(matches[i]);
         }
     }
 }
 
-scanForFluidElements(document);
+applyFluidOpacity(baseFluidOpacity);
+scanForFluidOpacityElements(document);
 
 if (typeof MutationObserver !== 'undefined') {
-    var fluidObserver = new MutationObserver(function (mutations) {
+    var fluidOpacityObserver = new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
             var mutation = mutations[i];
             if (mutation.type === 'childList') {
                 for (var j = 0; j < mutation.addedNodes.length; j++) {
-                    scanForFluidElements(mutation.addedNodes[j]);
+                    scanForFluidOpacityElements(mutation.addedNodes[j]);
                 }
-                if (activeFluidElement) {
+                if (activeOpacityElement) {
                     for (var k = 0; k < mutation.removedNodes.length; k++) {
                         var removed = mutation.removedNodes[k];
                         if (!removed || removed.nodeType !== 1) { continue; }
-                        if (removed === activeFluidElement || (removed.contains && removed.contains(activeFluidElement))) {
-                            deactivateFluid();
+                        if (removed === activeOpacityElement || (removed.contains && removed.contains(activeOpacityElement))) {
+                            activeOpacityElement = null;
+                            applyFluidOpacity(baseFluidOpacity);
                             break;
                         }
                     }
                 }
-            } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-' + FLUID_ATTRIBUTE) {
-                if (mutation.target.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
-                    bindFluidElement(mutation.target);
-                } else if (mutation.target === activeFluidElement) {
-                    deactivateFluid();
+            } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-' + FLUID_OPACITY_ATTRIBUTE) {
+                if (mutation.target.hasAttribute('data-' + FLUID_OPACITY_ATTRIBUTE)) {
+                    bindFluidOpacityElement(mutation.target);
+                    if (activeOpacityElement === mutation.target) {
+                        handleFluidOpacityEnter({ currentTarget: mutation.target });
+                    }
+                } else if (activeOpacityElement === mutation.target) {
+                    activeOpacityElement = null;
+                    applyFluidOpacity(baseFluidOpacity);
                 }
             }
         }
     });
-    fluidObserver.observe(document.documentElement, {
+    fluidOpacityObserver.observe(document.documentElement, {
         attributes: true,
-        attributeFilter: ['data-' + FLUID_ATTRIBUTE],
+        attributeFilter: ['data-' + FLUID_OPACITY_ATTRIBUTE],
         childList: true,
         subtree: true
     });
-}
-
-function handleFluidScrollOrBlur () {
-    if (!activeFluidElement) { return; }
-    deactivateFluid();
 }
 
 var config = {
@@ -1185,27 +1123,18 @@ function updateHoverPointerFromClient (clientX, clientY) {
     updatePointerMoveData(hoverPointer, coords.posX, coords.posY);
 }
 
-window.addEventListener('resize', requestFluidContainerSync);
-
 window.addEventListener('mousemove', function (e) {
-    if (!activeFluidElement) { return; }
-    var rect = canvas.getBoundingClientRect();
-    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
-        deactivateFluid();
-        return;
-    }
-    requestFluidContainerSync();
     updateHoverPointerFromClient(e.clientX, e.clientY);
 });
 
 window.addEventListener('mouseout', function (e) {
     if (!e.relatedTarget) {
-        deactivateFluid();
+        deactivateHoverPointer();
     }
 });
 
-window.addEventListener('scroll', handleFluidScrollOrBlur);
-window.addEventListener('blur', handleFluidScrollOrBlur);
+window.addEventListener('scroll', deactivateHoverPointer);
+window.addEventListener('blur', deactivateHoverPointer);
 
 canvas.addEventListener('mousedown', function (e) {
     var posX = scaleByPixelRatio(e.offsetX);

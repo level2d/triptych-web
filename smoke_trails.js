@@ -99,8 +99,8 @@ var config = {
     BLOOM_THRESHOLD: 0.3,
     BLOOM_SOFT_KNEE: 0.7,
     SUNRAYS: true,
-    SUNRAYS_RESOLUTION: 2,
-    SUNRAYS_WEIGHT: 1.0,
+    SUNRAYS_RESOLUTION: 196,
+    SUNRAYS_WEIGHT: 0.3,
 }
 
 var TRAIL_COLOR = { r: 175 / 255, g: 0, b: 241 / 255 };

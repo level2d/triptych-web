@@ -85,7 +85,7 @@ var config = {
     PRESSURE_ITERATIONS: 20,
     CURL: 4,
     SPLAT_RADIUS: 0.08,
-    SPLAT_FORCE: 900,
+    SPLAT_FORCE: 600,
     SHADING: true,
     COLORFUL: true,
     COLOR_UPDATE_SPEED: 10,

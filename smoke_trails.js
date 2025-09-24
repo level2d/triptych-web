@@ -79,8 +79,8 @@ var config = {
     DYE_RESOLUTION: 1024,
     CAPTURE_RESOLUTION: 512,
     // reduced dissipation/velocity so the effect is much more subtle
-    DENSITY_DISSIPATION: 0.98,
-    VELOCITY_DISSIPATION: 0.95,
+    DENSITY_DISSIPATION: 0.68,
+    VELOCITY_DISSIPATION: 0.65,
     PRESSURE: 0.8,
     PRESSURE_ITERATIONS: 20,
     CURL: 4,

@@ -695,7 +695,7 @@ function resizeCanvas () {
 }
 
 function updateColors (dt) {
-    if (!config.COLORFUL = false) { return; }
+    if (!config.COLORFUL) { return; }
 
     colorUpdateTimer += dt * config.COLOR_UPDATE_SPEED;
     if (colorUpdateTimer >= 1) {

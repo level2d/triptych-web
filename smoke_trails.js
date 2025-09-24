@@ -103,7 +103,7 @@ var config = {
     SUNRAYS_WEIGHT: 1.0,
 }
 
-var TRAIL_COLOR = { r: (175 / 255) * 0.65, g: 0, b: (241 / 255) * 0.65 };
+var TRAIL_COLOR = { r: (175 / 255) * 0.35, g: 0, b: (241 / 255) * 0.35 };
 
 function pointerPrototype () {
     this.id = -1;

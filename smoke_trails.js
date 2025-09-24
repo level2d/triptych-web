@@ -116,6 +116,7 @@ function pointerPrototype () {
     this.down = false;
     this.moved = false;
     this.color = { r: TRAIL_COLOR.r, g: TRAIL_COLOR.g, b: TRAIL_COLOR.b };
+    this.colorCycle = true;
 }
 
 var pointers = [];
@@ -701,7 +702,9 @@ function updateColors (dt) {
     if (colorUpdateTimer >= 1) {
         colorUpdateTimer = wrap(colorUpdateTimer, 0, 1);
         pointers.forEach(function (p) {
-            p.color = generateColor();
+            if (p.colorCycle !== false) {
+                p.color = generateColor();
+            }
         });
     }
 }
@@ -965,6 +968,7 @@ function correctRadius (radius) {
 
 var HOVER_POINTER_ID = -9999;
 var hoverPointer = pointers[0];
+hoverPointer.colorCycle = false;
 var hoverActive = false;
 
 function getHoverPointerPosition (clientX, clientY) {
@@ -1085,6 +1089,7 @@ function updatePointerDownData (pointer, id, posX, posY) {
     pointer.deltaX = 0;
     pointer.deltaY = 0;
     pointer.color = { r: TRAIL_COLOR.r, g: TRAIL_COLOR.g, b: TRAIL_COLOR.b };
+    pointer.colorCycle = false;
 }
 
 function updatePointerMoveData (pointer, posX, posY) {

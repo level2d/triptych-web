@@ -86,6 +86,7 @@ var activeFluidElement = null;
 var elementFluidState = new WeakMap();
 
 var svgNS = 'http://www.w3.org/2000/svg';
+var xlinkNS = 'http://www.w3.org/1999/xlink';
 var fluidFilterDefs = ensureFluidFilterDefs();
 
 function ensureFluidFilterDefs () {
@@ -127,10 +128,11 @@ function ensureElementFilter (element, intensity) {
         var filterId = 'fluid-distortion-' + Math.random().toString(36).slice(2);
         var filter = document.createElementNS(svgNS, 'filter');
         filter.setAttribute('id', filterId);
-        filter.setAttribute('x', '-20%');
-        filter.setAttribute('y', '-20%');
-        filter.setAttribute('width', '140%');
-        filter.setAttribute('height', '140%');
+        filter.setAttribute('x', '0%');
+        filter.setAttribute('y', '0%');
+        filter.setAttribute('width', '100%');
+        filter.setAttribute('height', '100%');
+        filter.setAttribute('filterUnits', 'objectBoundingBox');
 
         var turbulence = document.createElementNS(svgNS, 'feTurbulence');
         turbulence.setAttribute('type', 'fractalNoise');
@@ -145,9 +147,49 @@ function ensureElementFilter (element, intensity) {
         displacement.setAttribute('scale', '0');
         displacement.setAttribute('xChannelSelector', 'R');
         displacement.setAttribute('yChannelSelector', 'G');
+        displacement.setAttribute('result', 'distorted');
+
+        var maskImage = document.createElementNS(svgNS, 'feImage');
+        maskImage.setAttribute('x', '0');
+        maskImage.setAttribute('y', '0');
+        maskImage.setAttribute('width', '100%');
+        maskImage.setAttribute('height', '100%');
+        maskImage.setAttribute('preserveAspectRatio', 'none');
+        maskImage.setAttribute('result', 'fluidMask');
+
+        var maskAlpha = document.createElementNS(svgNS, 'feColorMatrix');
+        maskAlpha.setAttribute('in', 'fluidMask');
+        maskAlpha.setAttribute('type', 'luminanceToAlpha');
+        maskAlpha.setAttribute('result', 'fluidMaskAlpha');
+
+        var compositeMasked = document.createElementNS(svgNS, 'feComposite');
+        compositeMasked.setAttribute('in', 'distorted');
+        compositeMasked.setAttribute('in2', 'fluidMaskAlpha');
+        compositeMasked.setAttribute('operator', 'in');
+        compositeMasked.setAttribute('result', 'distortedMasked');
+
+        var compositeOutside = document.createElementNS(svgNS, 'feComposite');
+        compositeOutside.setAttribute('in', 'SourceGraphic');
+        compositeOutside.setAttribute('in2', 'fluidMaskAlpha');
+        compositeOutside.setAttribute('operator', 'out');
+        compositeOutside.setAttribute('result', 'originalOutside');
+
+        var merge = document.createElementNS(svgNS, 'feMerge');
+        var mergeNode1 = document.createElementNS(svgNS, 'feMergeNode');
+        mergeNode1.setAttribute('in', 'originalOutside');
+        var mergeNode2 = document.createElementNS(svgNS, 'feMergeNode');
+        mergeNode2.setAttribute('in', 'distortedMasked');
+        merge.appendChild(mergeNode1);
+        merge.appendChild(mergeNode2);
 
         filter.appendChild(turbulence);
         filter.appendChild(displacement);
+        filter.appendChild(maskImage);
+        filter.appendChild(maskAlpha);
+        filter.appendChild(compositeMasked);
+        filter.appendChild(compositeOutside);
+        filter.appendChild(merge);
+
         fluidFilterDefs.appendChild(filter);
 
         if (element.dataset.fluidOriginalFilter === undefined) {
@@ -159,12 +201,26 @@ function ensureElementFilter (element, intensity) {
         }
         element.classList.add('fluid-distorting');
 
+        var maskCanvas = document.createElement('canvas');
+        maskCanvas.width = maskCanvas.height = 128;
+        var maskCtx = maskCanvas.getContext('2d');
+        maskCtx.fillStyle = 'rgba(0, 0, 0, 1)';
+        maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+        var initialUrl = maskCanvas.toDataURL('image/png');
+        maskImage.setAttributeNS(xlinkNS, 'href', initialUrl);
+        maskImage.setAttribute('href', initialUrl);
+
         state = {
             element: element,
             filterId: filterId,
             filterElement: filter,
             turbulenceNode: turbulence,
             displacementNode: displacement,
+            maskImageNode: maskImage,
+            maskCanvas: maskCanvas,
+            maskCtx: maskCtx,
+            pendingPoints: [],
+            maskRaf: null,
             maxIntensity: maxIntensity,
             current: 0,
             target: 0,
@@ -181,7 +237,49 @@ function ensureElementFilter (element, intensity) {
         }
         element.classList.add('fluid-distorting');
     }
+    scheduleMaskRender(state);
     return state;
+}
+
+function scheduleMaskRender (state) {
+    if (state.maskRaf !== null) { return; }
+    state.maskRaf = requestAnimationFrame(function () {
+        state.maskRaf = null;
+        renderMask(state);
+    });
+}
+
+function renderMask (state) {
+    var ctx = state.maskCtx;
+    var w = ctx.canvas.width;
+    var h = ctx.canvas.height;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.09)';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.globalCompositeOperation = 'lighter';
+    while (state.pendingPoints.length > 0) {
+        var point = state.pendingPoints.shift();
+        var cx = point.x * w;
+        var cy = point.y * h;
+        var radius = (0.12 + point.strength * 0.35) * Math.min(w, h);
+        var gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        gradient.addColorStop(0, 'rgba(255,255,255,0.95)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    var dataUrl = ctx.canvas.toDataURL('image/png');
+    state.maskImageNode.setAttributeNS(xlinkNS, 'href', dataUrl);
+    state.maskImageNode.setAttribute('href', dataUrl);
+
+    if (state.pendingPoints.length > 0 || state.current > 0.01 || state.target > 0.01) {
+        scheduleMaskRender(state);
+    }
 }
 
 function animateFluidState (state) {
@@ -195,6 +293,8 @@ function animateFluidState (state) {
     state.displacementNode.setAttribute('scale', scale.toFixed(2));
     var baseFrequency = 0.01 + state.current * 0.05;
     state.turbulenceNode.setAttribute('baseFrequency', baseFrequency.toFixed(4));
+
+    scheduleMaskRender(state);
 
     if (state.current !== state.target || (state.cleanupWhenSettled && state.current > 0.001)) {
         state.raf = requestAnimationFrame(function () { animateFluidState(state); });
@@ -214,9 +314,18 @@ function setFluidTarget (state, normalizedTarget, cleanup) {
     if (state.raf === null) {
         state.raf = requestAnimationFrame(function () { animateFluidState(state); });
     }
+    scheduleMaskRender(state);
 }
 
 function cleanupElementFilter (state) {
+    if (state.raf !== null) {
+        cancelAnimationFrame(state.raf);
+        state.raf = null;
+    }
+    if (state.maskRaf !== null) {
+        cancelAnimationFrame(state.maskRaf);
+        state.maskRaf = null;
+    }
     var element = state.element;
     var original = element.dataset.fluidOriginalFilter;
     if (original !== undefined) {
@@ -231,7 +340,7 @@ function cleanupElementFilter (state) {
     if (state.filterElement && state.filterElement.parentNode) {
         state.filterElement.parentNode.removeChild(state.filterElement);
     }
-    state.cleanupWhenSettled = false;
+    state.pendingPoints.length = 0;
     elementFluidState.delete(element);
 }
 
@@ -240,9 +349,8 @@ function applyFluidFilter (element, intensity) {
     state.cleanupWhenSettled = false;
     if (state.current < 0.25) {
         setFluidTarget(state, 0.25, false);
-    } else if (state.raf === null) {
-        state.raf = requestAnimationFrame(function () { animateFluidState(state); });
     }
+    return state;
 }
 
 function clearFluidFilter (element) {
@@ -250,9 +358,22 @@ function clearFluidFilter (element) {
     var state = elementFluidState.get(element);
     if (!state) { return; }
     setFluidTarget(state, 0, true);
+    state.pendingPoints.length = 0;
     if (activeFluidElement === element) {
         activeFluidElement = null;
     }
+}
+
+function stampFluidMask (state, relX, relY, intensity) {
+    state.pendingPoints.push({
+        x: Math.max(0, Math.min(1, relX)),
+        y: Math.max(0, Math.min(1, relY)),
+        strength: Math.max(0, Math.min(1, intensity))
+    });
+    if (state.pendingPoints.length > 24) {
+        state.pendingPoints.splice(0, state.pendingPoints.length - 24);
+    }
+    scheduleMaskRender(state);
 }
 
 function onFluidEnter (event) {
@@ -262,9 +383,13 @@ function onFluidEnter (event) {
         clearFluidFilter(activeFluidElement);
     }
     activeFluidElement = element;
-    applyFluidFilter(element, intensity);
+    var state = applyFluidFilter(element, intensity);
     if (event.type === 'touchstart') {
-        var state = elementFluidState.get(element);
+        var touch = event.touches && event.touches[0];
+        if (touch) {
+            lastPointerClientX = touch.clientX;
+            lastPointerClientY = touch.clientY;
+        }
         if (state) {
             setFluidTarget(state, 0.6, false);
         }
@@ -274,8 +399,7 @@ function onFluidEnter (event) {
 }
 
 function onFluidLeave (event) {
-    var element = event.currentTarget;
-    clearFluidFilter(element);
+    clearFluidFilter(event.currentTarget);
 }
 
 function bindFluidElement (element) {
@@ -307,12 +431,20 @@ function updateActiveFluidFromPointer () {
     if (!activeFluidElement) { return; }
     var state = elementFluidState.get(activeFluidElement);
     if (!state) { return; }
+    var rect = activeFluidElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) { return; }
+    var clientX = lastPointerClientX;
+    var clientY = lastPointerClientY;
+    var relX = (clientX - rect.left) / rect.width;
+    var relY = (clientY - rect.top) / rect.height;
+    if (relX < 0 || relX > 1 || relY < 0 || relY > 1) { return; }
     var dx = hoverPointer ? hoverPointer.deltaX || 0 : 0;
     var dy = hoverPointer ? hoverPointer.deltaY || 0 : 0;
     var speed = Math.sqrt(dx * dx + dy * dy);
     var normalized = Math.min(1, speed * 800);
     var target = Math.max(0.25, normalized);
     setFluidTarget(state, target, false);
+    stampFluidMask(state, relX, relY, target);
 }
 
 function boostActiveFluidFromTouchMovement (touches) {
@@ -320,6 +452,14 @@ function boostActiveFluidFromTouchMovement (touches) {
     var state = elementFluidState.get(activeFluidElement);
     if (!state) { return; }
     if (!touches || touches.length === 0) { return; }
+    var touch = touches[0];
+    lastPointerClientX = touch.clientX;
+    lastPointerClientY = touch.clientY;
+    var rect = activeFluidElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) { return; }
+    var relX = (lastPointerClientX - rect.left) / rect.width;
+    var relY = (lastPointerClientY - rect.top) / rect.height;
+    if (relX < 0 || relX > 1 || relY < 0 || relY > 1) { return; }
     var maxDelta = 0;
     for (var i = 0; i < touches.length; i++) {
         var pointer = pointers[i + 1];
@@ -329,12 +469,11 @@ function boostActiveFluidFromTouchMovement (touches) {
         var magnitude = Math.sqrt(dx * dx + dy * dy);
         if (magnitude > maxDelta) { maxDelta = magnitude; }
     }
-    if (maxDelta === 0) { return; }
     var normalized = Math.min(1, maxDelta * 800);
     var target = Math.max(0.3, normalized);
     setFluidTarget(state, target, false);
+    stampFluidMask(state, relX, relY, target);
 }
-
 scanForFluidElements(document);
 
 if (typeof MutationObserver !== 'undefined') {
@@ -1289,6 +1428,9 @@ function correctRadius (radius) {
     return radius;
 }
 
+var lastPointerClientX = 0;
+var lastPointerClientY = 0;
+
 var HOVER_POINTER_ID = -9999;
 var hoverPointer = pointers[0];
 hoverPointer.colorCycle = false;
@@ -1313,6 +1455,8 @@ function deactivateHoverPointer () {
 }
 
 function updateHoverPointerFromClient (clientX, clientY) {
+    lastPointerClientX = clientX;
+    lastPointerClientY = clientY;
     var coords = getHoverPointerPosition(clientX, clientY);
     if (!coords.inside) {
         deactivateHoverPointer();
@@ -1376,6 +1520,10 @@ window.addEventListener('mouseup', function () {
 canvas.addEventListener('touchstart', function (e) {
     e.preventDefault();
     var touches = e.targetTouches;
+    if (touches.length > 0) {
+        lastPointerClientX = touches[0].clientX;
+        lastPointerClientY = touches[0].clientY;
+    }
     while (touches.length >= pointers.length)
         { pointers.push(new pointerPrototype()); }
     for (var i = 0; i < touches.length; i++) {
@@ -1383,6 +1531,7 @@ canvas.addEventListener('touchstart', function (e) {
         var posY = scaleByPixelRatio(touches[i].pageY);
         updatePointerDownData(pointers[i + 1], touches[i].identifier, posX, posY);
     }
+    boostActiveFluidFromTouchMovement(touches);
 });
 
 canvas.addEventListener('touchmove', function (e) {

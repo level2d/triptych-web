@@ -44,15 +44,22 @@ if (containerCreated) {
     container.style.position = 'fixed';
     container.style.top = '0';
     container.style.left = '0';
-    container.style.width = '100vw';
-    container.style.height = '100vh';
     container.style.zIndex = '9999';
     container.style.pointerEvents = 'none';
     container.style.userSelect = 'none';
-    container.style.opacity = '1';
+    container.style.opacity = '0';
+    container.style.width = '100vw';
+    container.style.height = '100vh';
+    container.style.overflow = 'hidden';
+    if (container.classList) {
+        container.classList.remove('fluid-active');
+    }
 } else {
     if (!container.style.pointerEvents) {
         container.style.pointerEvents = 'none';
+    }
+    if (!container.style.position) {
+        container.style.position = 'fixed';
     }
 }
 
@@ -70,9 +77,158 @@ canvas.style.left = canvas.style.left || '0';
 canvas.style.top = canvas.style.top || '0';
 canvas.style.width = '100%';
 canvas.style.height = '100%';
-canvas.style.pointerEvents = 'auto';
+canvas.style.pointerEvents = 'none';
+canvas.style.borderRadius = canvas.style.borderRadius || 'inherit';
 
 resizeCanvas();
+
+var FLUID_ATTRIBUTE = 'fluid';
+var FLUID_BOUND_FLAG = '__fluidBound';
+var FLUID_ACTIVE_CLASS = 'fluid-active';
+var activeFluidElement = null;
+var fluidSyncHandle = null;
+var lastFluidRect = null;
+
+function activateFluidForElement (element) {
+    if (activeFluidElement === element) { return; }
+    activeFluidElement = element;
+    if (container.classList) {
+        container.classList.add(FLUID_ACTIVE_CLASS);
+    }
+    var attrOpacity = element.getAttribute('data-fluid-opacity');
+    container.style.opacity = attrOpacity || '1';
+    var computedStyle = window.getComputedStyle(element);
+    container.style.borderRadius = computedStyle.borderRadius;
+    canvas.style.borderRadius = computedStyle.borderRadius;
+    lastFluidRect = null;
+    syncFluidContainer();
+    requestFluidContainerSync();
+}
+
+function deactivateFluid () {
+    if (!activeFluidElement) { return; }
+    activeFluidElement = null;
+    if (container.classList) {
+        container.classList.remove(FLUID_ACTIVE_CLASS);
+    }
+    container.style.opacity = '0';
+    container.style.borderRadius = '';
+    canvas.style.borderRadius = '';
+    if (fluidSyncHandle !== null) {
+        cancelAnimationFrame(fluidSyncHandle);
+        fluidSyncHandle = null;
+    }
+    lastFluidRect = null;
+    deactivateHoverPointer();
+}
+
+function syncFluidContainer () {
+    if (!activeFluidElement) { return; }
+    var rect = activeFluidElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) { return; }
+    container.style.top = rect.top + 'px';
+    container.style.left = rect.left + 'px';
+    container.style.width = rect.width + 'px';
+    container.style.height = rect.height + 'px';
+    if (!lastFluidRect || lastFluidRect.width !== rect.width || lastFluidRect.height !== rect.height) {
+        lastFluidRect = { width: rect.width, height: rect.height };
+        resizeCanvas();
+    }
+}
+
+function requestFluidContainerSync () {
+    if (!activeFluidElement) { return; }
+    if (fluidSyncHandle !== null) { return; }
+    var step = function () {
+        if (!activeFluidElement) {
+            fluidSyncHandle = null;
+            return;
+        }
+        syncFluidContainer();
+        fluidSyncHandle = requestAnimationFrame(step);
+    };
+    fluidSyncHandle = requestAnimationFrame(step);
+}
+
+function onFluidMouseEnter (event) {
+    activateFluidForElement(event.currentTarget);
+    syncFluidContainer();
+    updateHoverPointerFromClient(event.clientX, event.clientY);
+}
+
+function onFluidMouseMove (event) {
+    if (activeFluidElement !== event.currentTarget) { return; }
+    requestFluidContainerSync();
+}
+
+function onFluidMouseLeave (event) {
+    if (activeFluidElement !== event.currentTarget) { return; }
+    deactivateFluid();
+}
+
+function bindFluidElement (element) {
+    if (!element || element.nodeType !== 1) { return; }
+    if (element[FLUID_BOUND_FLAG]) { return; }
+    element[FLUID_BOUND_FLAG] = true;
+    element.addEventListener('mouseenter', onFluidMouseEnter);
+    element.addEventListener('mousemove', onFluidMouseMove);
+    element.addEventListener('mouseleave', onFluidMouseLeave);
+}
+
+function scanForFluidElements (root) {
+    if (!root) { return; }
+    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
+        bindFluidElement(root);
+    }
+    if (root.querySelectorAll) {
+        var matches = root.querySelectorAll('[data-' + FLUID_ATTRIBUTE + ']');
+        for (var i = 0; i < matches.length; i++) {
+            bindFluidElement(matches[i]);
+        }
+    }
+}
+
+scanForFluidElements(document);
+
+if (typeof MutationObserver !== 'undefined') {
+    var fluidObserver = new MutationObserver(function (mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+            var mutation = mutations[i];
+            if (mutation.type === 'childList') {
+                for (var j = 0; j < mutation.addedNodes.length; j++) {
+                    scanForFluidElements(mutation.addedNodes[j]);
+                }
+                if (activeFluidElement) {
+                    for (var k = 0; k < mutation.removedNodes.length; k++) {
+                        var removed = mutation.removedNodes[k];
+                        if (!removed || removed.nodeType !== 1) { continue; }
+                        if (removed === activeFluidElement || (removed.contains && removed.contains(activeFluidElement))) {
+                            deactivateFluid();
+                            break;
+                        }
+                    }
+                }
+            } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-' + FLUID_ATTRIBUTE) {
+                if (mutation.target.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
+                    bindFluidElement(mutation.target);
+                } else if (mutation.target === activeFluidElement) {
+                    deactivateFluid();
+                }
+            }
+        }
+    });
+    fluidObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-' + FLUID_ATTRIBUTE],
+        childList: true,
+        subtree: true
+    });
+}
+
+function handleFluidScrollOrBlur () {
+    if (!activeFluidElement) { return; }
+    deactivateFluid();
+}
 
 var config = {
     SIM_RESOLUTION: 128,
@@ -108,6 +264,10 @@ var TRAIL_COLOR = { r: 175 / 255, g: 0 / 255, b: 241 / 255 };
 var BLOOM_COLOR = { r: 1, g: 1, b: 1 };
 var BLOOM_INTENSITY = 4.0;
 var BLOOM_RANDOM_INTENSITY = 6.0;
+
+var CURSOR_HIGHLIGHT_COLOR = { r: 1, g: 1, b: 1 };
+var CURSOR_HIGHLIGHT_INTENSITY = 3.0;
+var CURSOR_HIGHLIGHT_RADIUS_SCALE = 0.45;
 
 function pointerPrototype () {
     this.id = -1;
@@ -928,7 +1088,15 @@ function blur (target, temp, iterations) {
 function splatPointer (pointer) {
     var dx = pointer.deltaX * config.SPLAT_FORCE;
     var dy = pointer.deltaY * config.SPLAT_FORCE;
-    splat(pointer.texcoordX, pointer.texcoordY, dx, dy, pointer.color);
+
+    var highlight = {
+        r: CURSOR_HIGHLIGHT_COLOR.r * CURSOR_HIGHLIGHT_INTENSITY,
+        g: CURSOR_HIGHLIGHT_COLOR.g * CURSOR_HIGHLIGHT_INTENSITY,
+        b: CURSOR_HIGHLIGHT_COLOR.b * CURSOR_HIGHLIGHT_INTENSITY
+    };
+
+    splat(pointer.texcoordX, pointer.texcoordY, dx, dy, highlight, CURSOR_HIGHLIGHT_RADIUS_SCALE);
+    splat(pointer.texcoordX, pointer.texcoordY, dx, dy, pointer.color, 1);
 }
 
 function multipleSplats (amount, useBloomColor) {
@@ -953,14 +1121,16 @@ function multipleSplats (amount, useBloomColor) {
     }
 }
 
-function splat (x, y, dx, dy, color) {
+function splat (x, y, dx, dy, color, radiusScale) {
+    if (radiusScale === void 0) { radiusScale = 1; }
+
     gl.viewport(0, 0, velocity.width, velocity.height);
     splatProgram.bind();
     gl.uniform1i(splatProgram.uniforms.uTarget, velocity.read.attach(0));
     gl.uniform1f(splatProgram.uniforms.aspectRatio, canvas.width / canvas.height);
     gl.uniform2f(splatProgram.uniforms.point, x, y);
     gl.uniform3f(splatProgram.uniforms.color, dx, dy, 0.0);
-    gl.uniform1f(splatProgram.uniforms.radius, correctRadius(config.SPLAT_RADIUS / 100.0));
+    gl.uniform1f(splatProgram.uniforms.radius, correctRadius((config.SPLAT_RADIUS * radiusScale) / 100.0));
     blit(velocity.write.fbo);
     velocity.swap();
 
@@ -1015,18 +1185,27 @@ function updateHoverPointerFromClient (clientX, clientY) {
     updatePointerMoveData(hoverPointer, coords.posX, coords.posY);
 }
 
+window.addEventListener('resize', requestFluidContainerSync);
+
 window.addEventListener('mousemove', function (e) {
+    if (!activeFluidElement) { return; }
+    var rect = canvas.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+        deactivateFluid();
+        return;
+    }
+    requestFluidContainerSync();
     updateHoverPointerFromClient(e.clientX, e.clientY);
 });
 
 window.addEventListener('mouseout', function (e) {
     if (!e.relatedTarget) {
-        deactivateHoverPointer();
+        deactivateFluid();
     }
 });
 
-window.addEventListener('scroll', deactivateHoverPointer);
-window.addEventListener('blur', deactivateHoverPointer);
+window.addEventListener('scroll', handleFluidScrollOrBlur);
+window.addEventListener('blur', handleFluidScrollOrBlur);
 
 canvas.addEventListener('mousedown', function (e) {
     var posX = scaleByPixelRatio(e.offsetX);

@@ -44,9 +44,6 @@ if (!container) {
     containerCreated = true;
 }
 
-var BASE_Z_INDEX = '0';
-var ACTIVE_Z_INDEX = '9999';
-
 if (containerCreated) {
     container.style.position = 'fixed';
     container.style.top = '0';
@@ -54,7 +51,9 @@ if (containerCreated) {
     container.style.width = '100vw';
     container.style.height = '100vh';
 }
-container.style.zIndex = BASE_Z_INDEX;
+if (!container.style.zIndex) {
+    container.style.zIndex = '0';
+}
 container.style.pointerEvents = 'none';
 container.style.userSelect = 'none';
 container.style.overflow = container.style.overflow || 'hidden';
@@ -79,105 +78,127 @@ canvas.style.borderRadius = canvas.style.borderRadius || 'inherit';
 resizeCanvas();
 
 var FLUID_ATTRIBUTE = 'fluid-opacity';
-var FLUID_BOUND_FLAG = '__fluidOpacityBound';
-var baseFluidOpacity = container.style.opacity || window.getComputedStyle(container).opacity || '1';
+var FLUID_BOUND_FLAG = '__fluidBound';
+var FLUID_DEFAULT_INTENSITY = 0.5;
+var FLUID_MIN_SCALE = 12;
+var FLUID_MAX_SCALE = 64;
 var activeFluidElement = null;
-var fluidSyncHandle = null;
-var lastFluidRect = null;
 
-function clampFluidOpacity (value) {
+var svgNS = 'http://www.w3.org/2000/svg';
+var fluidFilterCache = Object.create(null);
+var fluidFilterDefs = ensureFluidFilterDefs();
+
+function ensureFluidFilterDefs () {
+    var existingSvg = document.getElementById('fluid-distortion-defs');
+    if (existingSvg && existingSvg.namespaceURI === svgNS) {
+        var existingDefs = existingSvg.querySelector('defs');
+        if (!existingDefs) {
+            existingDefs = document.createElementNS(svgNS, 'defs');
+            existingSvg.appendChild(existingDefs);
+        }
+        return existingDefs;
+    }
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('id', 'fluid-distortion-defs');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.position = 'fixed';
+    svg.style.width = '0';
+    svg.style.height = '0';
+    svg.style.pointerEvents = 'none';
+    svg.style.visibility = 'hidden';
+    var defs = document.createElementNS(svgNS, 'defs');
+    svg.appendChild(defs);
+    document.body.appendChild(svg);
+    return defs;
+}
+
+function clampFluidIntensity (value) {
     var numeric = parseFloat(value);
-    if (!isFinite(numeric)) { return baseFluidOpacity; }
+    if (!isFinite(numeric)) { numeric = FLUID_DEFAULT_INTENSITY; }
     if (numeric < 0) { numeric = 0; }
     if (numeric > 1) { numeric = 1; }
-    return numeric.toString();
+    return numeric;
 }
 
-function applyFluidOpacity (value) {
-    container.style.opacity = value;
+function getOrCreateFluidFilterId (intensity) {
+    var clamped = clampFluidIntensity(intensity);
+    var scale = FLUID_MIN_SCALE + clamped * (FLUID_MAX_SCALE - FLUID_MIN_SCALE);
+    var key = scale.toFixed(2);
+    if (fluidFilterCache[key]) { return fluidFilterCache[key]; }
+    var filterId = 'fluid-distortion-' + key.replace('.', '-');
+    var filter = document.createElementNS(svgNS, 'filter');
+    filter.setAttribute('id', filterId);
+    filter.setAttribute('x', '-20%');
+    filter.setAttribute('y', '-20%');
+    filter.setAttribute('width', '140%');
+    filter.setAttribute('height', '140%');
+
+    var turbulence = document.createElementNS(svgNS, 'feTurbulence');
+    turbulence.setAttribute('type', 'fractalNoise');
+    turbulence.setAttribute('baseFrequency', '0.02');
+    turbulence.setAttribute('numOctaves', '2');
+    turbulence.setAttribute('seed', Math.floor(Math.random() * 1000));
+    turbulence.setAttribute('result', 'fluidNoise');
+    var animate = document.createElementNS(svgNS, 'animate');
+    animate.setAttribute('attributeName', 'baseFrequency');
+    animate.setAttribute('values', '0.012;0.02;0.012');
+    animate.setAttribute('dur', '6s');
+    animate.setAttribute('repeatCount', 'indefinite');
+    turbulence.appendChild(animate);
+
+    var displacement = document.createElementNS(svgNS, 'feDisplacementMap');
+    displacement.setAttribute('in', 'SourceGraphic');
+    displacement.setAttribute('in2', 'fluidNoise');
+    displacement.setAttribute('scale', scale.toString());
+    displacement.setAttribute('xChannelSelector', 'R');
+    displacement.setAttribute('yChannelSelector', 'G');
+
+    filter.appendChild(turbulence);
+    filter.appendChild(displacement);
+    fluidFilterDefs.appendChild(filter);
+    fluidFilterCache[key] = filterId;
+    return filterId;
 }
 
-function setContainerToBase () {
-    lastFluidRect = null;
-    container.style.top = '0';
-    container.style.left = '0';
-    container.style.width = '100vw';
-    container.style.height = '100vh';
-    container.style.zIndex = BASE_Z_INDEX;
-    container.style.borderRadius = '';
-    canvas.style.borderRadius = '';
-    applyFluidOpacity(baseFluidOpacity);
-    resizeCanvas();
-}
-
-function syncFluidContainer () {
-    if (!activeFluidElement) { return; }
-    var rect = activeFluidElement.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) { return; }
-    container.style.top = rect.top + 'px';
-    container.style.left = rect.left + 'px';
-    container.style.width = rect.width + 'px';
-    container.style.height = rect.height + 'px';
-    var computedStyle = window.getComputedStyle(activeFluidElement);
-    container.style.borderRadius = computedStyle.borderRadius;
-    canvas.style.borderRadius = computedStyle.borderRadius;
-    if (!lastFluidRect || lastFluidRect.width !== rect.width || lastFluidRect.height !== rect.height) {
-        lastFluidRect = { width: rect.width, height: rect.height };
-        resizeCanvas();
+function applyFluidFilter (element, intensity) {
+    var filterId = getOrCreateFluidFilterId(intensity);
+    if (element.dataset.fluidOriginalFilter === undefined) {
+        element.dataset.fluidOriginalFilter = element.style.filter || '';
     }
+    var existing = element.dataset.fluidOriginalFilter;
+    var newFilter = 'url(#' + filterId + ')';
+    element.style.filter = existing ? existing + ' ' + newFilter : newFilter;
+    element.classList.add('fluid-distorting');
 }
 
-function startFluidSync () {
-    if (fluidSyncHandle !== null) {
-        cancelAnimationFrame(fluidSyncHandle);
+function clearFluidFilter (element) {
+    if (!element) { return; }
+    var original = element.dataset.fluidOriginalFilter;
+    if (original !== undefined) {
+        element.style.filter = original;
+        delete element.dataset.fluidOriginalFilter;
+    } else {
+        element.style.removeProperty('filter');
     }
-    var step = function () {
-        if (!activeFluidElement) {
-            fluidSyncHandle = null;
-            return;
-        }
-        syncFluidContainer();
-        fluidSyncHandle = requestAnimationFrame(step);
-    };
-    fluidSyncHandle = requestAnimationFrame(step);
+    element.classList.remove('fluid-distorting');
 }
 
-function activateFluidForElement (element, clientX, clientY) {
-    if (activeFluidElement === element) { return; }
+function onFluidEnter (event) {
+    var element = event.currentTarget;
+    var intensity = element.getAttribute('data-' + FLUID_ATTRIBUTE);
+    if (activeFluidElement && activeFluidElement !== element) {
+        clearFluidFilter(activeFluidElement);
+    }
     activeFluidElement = element;
-    var attrValue = element.getAttribute('data-' + FLUID_ATTRIBUTE);
-    applyFluidOpacity(attrValue == null || attrValue === '' ? baseFluidOpacity : clampFluidOpacity(attrValue));
-    container.style.zIndex = ACTIVE_Z_INDEX;
-    syncFluidContainer();
-    startFluidSync();
-    if (typeof clientX === 'number' && typeof clientY === 'number') {
-        updateHoverPointerFromClient(clientX, clientY);
+    applyFluidFilter(element, intensity);
+}
+
+function onFluidLeave (event) {
+    var element = event.currentTarget;
+    clearFluidFilter(element);
+    if (activeFluidElement === element) {
+        activeFluidElement = null;
     }
-}
-
-function deactivateFluid () {
-    if (!activeFluidElement) { return; }
-    activeFluidElement = null;
-    if (fluidSyncHandle !== null) {
-        cancelAnimationFrame(fluidSyncHandle);
-        fluidSyncHandle = null;
-    }
-    setContainerToBase();
-    deactivateHoverPointer();
-}
-
-function handleFluidMouseEnter (event) {
-    activateFluidForElement(event.currentTarget, event.clientX, event.clientY);
-}
-
-function handleFluidMouseMove (event) {
-    if (activeFluidElement !== event.currentTarget) { return; }
-    updateHoverPointerFromClient(event.clientX, event.clientY);
-}
-
-function handleFluidMouseLeave (event) {
-    if (activeFluidElement !== event.currentTarget) { return; }
-    deactivateFluid();
 }
 
 function bindFluidElement (element) {
@@ -185,9 +206,11 @@ function bindFluidElement (element) {
     if (!element.hasAttribute('data-' + FLUID_ATTRIBUTE)) { return; }
     if (element[FLUID_BOUND_FLAG]) { return; }
     element[FLUID_BOUND_FLAG] = true;
-    element.addEventListener('mouseenter', handleFluidMouseEnter);
-    element.addEventListener('mousemove', handleFluidMouseMove);
-    element.addEventListener('mouseleave', handleFluidMouseLeave);
+    element.addEventListener('mouseenter', onFluidEnter);
+    element.addEventListener('mouseleave', onFluidLeave);
+    element.addEventListener('touchstart', onFluidEnter, { passive: true });
+    element.addEventListener('touchend', onFluidLeave);
+    element.addEventListener('touchcancel', onFluidLeave);
 }
 
 function scanForFluidElements (root) {
@@ -203,7 +226,6 @@ function scanForFluidElements (root) {
     }
 }
 
-setContainerToBase();
 scanForFluidElements(document);
 
 if (typeof MutationObserver !== 'undefined') {
@@ -219,16 +241,20 @@ if (typeof MutationObserver !== 'undefined') {
                         var removed = mutation.removedNodes[k];
                         if (!removed || removed.nodeType !== 1) { continue; }
                         if (removed === activeFluidElement || (removed.contains && removed.contains(activeFluidElement))) {
-                            deactivateFluid();
+                            clearFluidFilter(activeFluidElement);
+                            activeFluidElement = null;
                             break;
                         }
                     }
                 }
             } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-' + FLUID_ATTRIBUTE) {
-                if (mutation.target.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
+                if (!mutation.target.hasAttribute('data-' + FLUID_ATTRIBUTE)) {
+                    if (mutation.target === activeFluidElement) {
+                        clearFluidFilter(activeFluidElement);
+                        activeFluidElement = null;
+                    }
+                } else {
                     bindFluidElement(mutation.target);
-                } else if (mutation.target === activeFluidElement) {
-                    deactivateFluid();
                 }
             }
         }
@@ -240,23 +266,6 @@ if (typeof MutationObserver !== 'undefined') {
         subtree: true
     });
 }
-
-window.addEventListener('scroll', function () {
-    if (activeFluidElement) {
-        syncFluidContainer();
-    } else {
-        deactivateHoverPointer();
-    }
-});
-
-window.addEventListener('resize', function () {
-    lastFluidRect = null;
-    if (activeFluidElement) {
-        syncFluidContainer();
-    } else {
-        resizeCanvas();
-    }
-});
 
 var config = {
     SIM_RESOLUTION: 128,
@@ -1219,13 +1228,27 @@ window.addEventListener('mousemove', function (e) {
 
 window.addEventListener('mouseout', function (e) {
     if (!e.relatedTarget) {
-        deactivateFluid();
+        if (activeFluidElement) {
+            clearFluidFilter(activeFluidElement);
+            activeFluidElement = null;
+        }
         deactivateHoverPointer();
     }
 });
 
+window.addEventListener('scroll', function () {
+    if (activeFluidElement) {
+        clearFluidFilter(activeFluidElement);
+        activeFluidElement = null;
+    }
+    deactivateHoverPointer();
+});
+
 window.addEventListener('blur', function () {
-    deactivateFluid();
+    if (activeFluidElement) {
+        clearFluidFilter(activeFluidElement);
+        activeFluidElement = null;
+    }
     deactivateHoverPointer();
 });
 

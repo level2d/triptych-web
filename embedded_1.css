@@ -23,3 +23,8 @@
     pointer-events: none;
     border-radius: inherit;
 }
+
+.fluid-distorting {
+    transition: filter 0.25s ease;
+    will-change: filter;
+}

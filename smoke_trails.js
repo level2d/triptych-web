@@ -90,7 +90,7 @@ var config = {
     COLORFUL: true,
     COLOR_UPDATE_SPEED: 100,
     PAUSED: false,
-    BACK_COLOR: { r: 52, g: 52, b: 52 },
+    BACK_COLOR: { r: 37, g: 37, b: 37 },
     TRANSPARENT: false,
     BLOOM: true,
     BLOOM_ITERATIONS: 8,

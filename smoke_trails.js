@@ -88,7 +88,7 @@ var config = {
     SPLAT_FORCE: 900,
     SHADING: true,
     COLORFUL: true,
-    COLOR_UPDATE_SPEED: 100,
+    COLOR_UPDATE_SPEED: 0,
     PAUSED: false,
     BACK_COLOR: { r: 37, g: 37, b: 37 },
     TRANSPARENT: false,

@@ -103,7 +103,7 @@ var config = {
     SUNRAYS_WEIGHT: 1.0,
 }
 
-var TRAIL_COLOR = { r: 175 / 255, g: 0, b: 241 / 255 };
+var TRAIL_COLOR = { r: (175 / 255) * 0.65, g: 0, b: (241 / 255) * 0.65 };
 
 function pointerPrototype () {
     this.id = -1;
@@ -927,9 +927,9 @@ function splatPointer (pointer) {
 function multipleSplats (amount) {
     for (var i = 0; i < amount; i++) {
         var color = generateColor();
-        color.r *= 10.0;
-        color.g *= 10.0;
-        color.b *= 10.0;
+        color.r *= 6.0;
+        color.g *= 6.0;
+        color.b *= 6.0;
         var x = Math.random();
         var y = Math.random();
         var dx = 1000 * (Math.random() - 0.5);

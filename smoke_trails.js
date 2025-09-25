@@ -77,7 +77,8 @@ canvas.style.borderRadius = canvas.style.borderRadius || 'inherit';
 
 resizeCanvas();
 
-var FLUID_ATTRIBUTE = 'fluid-opacity';
+var FLUID_ATTRIBUTE = 'data-fluid-distort';
+var FLUID_ATTRIBUTE_SELECTOR = '[' + FLUID_ATTRIBUTE + ']';
 var FLUID_BOUND_FLAG = '__fluidBound';
 var FLUID_DEFAULT_INTENSITY = 0.5;
 var FLUID_MIN_SCALE = 12;
@@ -378,7 +379,7 @@ function stampFluidMask (state, relX, relY, intensity) {
 
 function onFluidEnter (event) {
     var element = event.currentTarget;
-    var intensity = element.getAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE);
+    var intensity = element.getAttribute(FLUID_ATTRIBUTE);
     if (activeFluidElement && activeFluidElement !== element) {
         clearFluidFilter(activeFluidElement);
     }
@@ -404,7 +405,7 @@ function onFluidLeave (event) {
 
 function bindFluidElement (element) {
     if (!element || element.nodeType !== 1) { return; }
-    if (!element.hasAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE)) { return; }
+    if (!element.hasAttribute(FLUID_ATTRIBUTE)) { return; }
     if (element[FLUID_BOUND_FLAG]) { return; }
     element[FLUID_BOUND_FLAG] = true;
     element.addEventListener('mouseenter', onFluidEnter);
@@ -416,11 +417,11 @@ function bindFluidElement (element) {
 
 function scanForFluidElements (root) {
     if (!root) { return; }
-    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE)) {
+    if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute(FLUID_ATTRIBUTE)) {
         bindFluidElement(root);
     }
     if (root.querySelectorAll) {
-        var matches = root.querySelectorAll('[data-fluid-opacity' + FLUID_ATTRIBUTE + ']');
+        var matches = root.querySelectorAll(FLUID_ATTRIBUTE_SELECTOR);
         for (var i = 0; i < matches.length; i++) {
             bindFluidElement(matches[i]);
         }
@@ -494,8 +495,8 @@ if (typeof MutationObserver !== 'undefined') {
                         }
                     }
                 }
-            } else if (mutation.type === 'attributes' && mutation.attributeName === 'data-fluid-opacity' + FLUID_ATTRIBUTE) {
-                if (!mutation.target.hasAttribute('data-fluid-opacity' + FLUID_ATTRIBUTE)) {
+            } else if (mutation.type === 'attributes' && mutation.attributeName === FLUID_ATTRIBUTE) {
+                if (!mutation.target.hasAttribute(FLUID_ATTRIBUTE)) {
                     clearFluidFilter(mutation.target);
                 } else {
                     bindFluidElement(mutation.target);
@@ -505,7 +506,7 @@ if (typeof MutationObserver !== 'undefined') {
     });
     fluidObserver.observe(document.documentElement, {
         attributes: true,
-        attributeFilter: ['data-fluid-opacity' + FLUID_ATTRIBUTE],
+        attributeFilter: [FLUID_ATTRIBUTE],
         childList: true,
         subtree: true
     });
@@ -1688,3 +1689,7 @@ function hashCode (s) {
     }
     return hash;
 };
+if (typeof window !== 'undefined') {
+    window.updateHoverPointerFromClient = updateHoverPointerFromClient;
+    window.deactivateHoverPointer = deactivateHoverPointer;
+}

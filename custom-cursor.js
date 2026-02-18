@@ -9,7 +9,7 @@
   if ('ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches) return;
 
   var MAIN_SIZE = 20;
-  var HOVER_SIZE = 40;
+  var HOVER_SIZE = 15;
   var TRAIL_COUNT = 5;
   var TRAIL_COLOR = '#AF00F1';
   var TRAIL_SPEED = 0.15;

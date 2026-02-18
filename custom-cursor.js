@@ -1,6 +1,7 @@
 /**
  * Custom Cursor with Trail Effect
  * Purple circle cursor (#AF00F1) with a subtle trailing effect
+ * Multiply blend mode on link/button hover
  */
 
 (function () {
@@ -8,18 +9,14 @@
   if ('ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches) return;
 
   var MAIN_SIZE = 20;
+  var HOVER_SIZE = 40;
   var TRAIL_COUNT = 5;
   var TRAIL_COLOR = '#AF00F1';
-  var ALT_COLOR = '#FFFFFF';
   var TRAIL_SPEED = 0.15;
-
-  // RGB of #AF00F1 for color distance comparison
-  var TARGET_R = 175, TARGET_G = 0, TARGET_B = 241;
-  var COLOR_THRESHOLD = 80; // How close a color must be to trigger the switch
 
   var mouseX = -100;
   var mouseY = -100;
-  var currentColor = TRAIL_COLOR;
+  var isHovering = false;
 
   // Inject styles to hide default cursor
   var style = document.createElement('style');
@@ -35,6 +32,7 @@
   mainDot.style.height = MAIN_SIZE + 'px';
   mainDot.style.backgroundColor = TRAIL_COLOR;
   mainDot.style.boxShadow = '0 0 10px ' + TRAIL_COLOR + ', 0 0 20px ' + TRAIL_COLOR + '60';
+  mainDot.style.transition = 'width 0.2s, height 0.2s, opacity 0.2s, mix-blend-mode 0.2s';
   document.body.appendChild(mainDot);
 
   // Create trail dots
@@ -48,8 +46,9 @@
     dot.style.height = size + 'px';
     dot.style.backgroundColor = TRAIL_COLOR;
     dot.style.opacity = (0.4 * scale).toFixed(2);
+    dot.style.transition = 'opacity 0.2s';
     document.body.appendChild(dot);
-    trails.push({ el: dot, x: -100, y: -100 });
+    trails.push({ el: dot, x: -100, y: -100, baseOpacity: 0.4 * scale });
   }
 
   // Track mouse position
@@ -69,94 +68,78 @@
   document.addEventListener('mouseenter', function () {
     mainDot.style.opacity = '1';
     for (var i = 0; i < trails.length; i++) {
-      var scale = 1 - ((i + 1) / (TRAIL_COUNT + 1));
-      trails[i].el.style.opacity = (0.4 * scale).toFixed(2);
+      trails[i].el.style.opacity = trails[i].baseOpacity.toFixed(2);
     }
   });
 
-  // Parse an rgb/rgba string into [r, g, b]
-  function parseColor(str) {
-    if (!str) return null;
-    var match = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    return match ? [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])] : null;
-  }
-
-  // Check if a color is close to our purple
-  function isSimilarColor(r, g, b) {
-    var dr = r - TARGET_R;
-    var dg = g - TARGET_G;
-    var db = b - TARGET_B;
-    return Math.sqrt(dr * dr + dg * dg + db * db) < COLOR_THRESHOLD;
-  }
-
-  // Walk up the DOM to find the effective background color
-  function getEffectiveBg(el) {
+  // Check if element or any parent is a link/button
+  function isClickable(el) {
     while (el && el !== document.documentElement) {
-      var bg = window.getComputedStyle(el).backgroundColor;
-      var parsed = parseColor(bg);
-      if (parsed && !(parsed[0] === 0 && parsed[1] === 0 && parsed[2] === 0 &&
-          bg.indexOf('rgba') === 0 && bg.indexOf(', 0)') !== -1)) {
-        return parsed;
-      }
+      var tag = el.tagName;
+      if (tag === 'A' || tag === 'BUTTON') return true;
+      var role = el.getAttribute('role');
+      if (role === 'button' || role === 'link') return true;
+      if (el.onclick || el.getAttribute('data-href')) return true;
+      var cs = window.getComputedStyle(el).cursor;
+      if (cs === 'pointer') return true;
       el = el.parentElement;
     }
-    return null;
+    return false;
   }
 
-  // Check element under cursor and swap color if needed
-  function updateCursorColor() {
+  // Update hover state
+  function updateHoverState() {
     var el = document.elementFromPoint(mouseX, mouseY);
-    if (!el) return;
+    var hovering = el ? isClickable(el) : false;
 
-    var shouldBeWhite = false;
-
-    // Check background color (walk up tree)
-    var bg = getEffectiveBg(el);
-    if (bg && isSimilarColor(bg[0], bg[1], bg[2])) {
-      shouldBeWhite = true;
-    }
-
-    // Check text color of the element itself
-    var textColor = parseColor(window.getComputedStyle(el).color);
-    if (textColor && isSimilarColor(textColor[0], textColor[1], textColor[2])) {
-      shouldBeWhite = true;
-    }
-
-    var newColor = shouldBeWhite ? ALT_COLOR : TRAIL_COLOR;
-    if (newColor !== currentColor) {
-      currentColor = newColor;
-      var shadow = shouldBeWhite
-        ? '0 0 10px rgba(255,255,255,0.8), 0 0 20px rgba(255,255,255,0.4)'
-        : '0 0 10px ' + TRAIL_COLOR + ', 0 0 20px ' + TRAIL_COLOR + '60';
-      mainDot.style.backgroundColor = newColor;
-      mainDot.style.boxShadow = shadow;
-      for (var i = 0; i < trails.length; i++) {
-        trails[i].el.style.backgroundColor = newColor;
+    if (hovering !== isHovering) {
+      isHovering = hovering;
+      if (hovering) {
+        mainDot.style.width = HOVER_SIZE + 'px';
+        mainDot.style.height = HOVER_SIZE + 'px';
+        mainDot.style.mixBlendMode = 'multiply';
+        mainDot.style.opacity = '0.7';
+        mainDot.style.boxShadow = 'none';
+        // Fade out trails on hover
+        for (var i = 0; i < trails.length; i++) {
+          trails[i].el.style.opacity = '0';
+        }
+      } else {
+        mainDot.style.width = MAIN_SIZE + 'px';
+        mainDot.style.height = MAIN_SIZE + 'px';
+        mainDot.style.mixBlendMode = 'normal';
+        mainDot.style.opacity = '1';
+        mainDot.style.boxShadow = '0 0 10px ' + TRAIL_COLOR + ', 0 0 20px ' + TRAIL_COLOR + '60';
+        // Restore trails
+        for (var j = 0; j < trails.length; j++) {
+          trails[j].el.style.opacity = trails[j].baseOpacity.toFixed(2);
+        }
       }
     }
   }
 
   // Shrink cursor on click
-  mainDot.style.transition = 'width 0.15s, height 0.15s, background-color 0.2s, box-shadow 0.2s';
   document.addEventListener('mousedown', function () {
-    mainDot.style.width = (MAIN_SIZE * 0.7) + 'px';
-    mainDot.style.height = (MAIN_SIZE * 0.7) + 'px';
+    var size = isHovering ? HOVER_SIZE * 0.7 : MAIN_SIZE * 0.7;
+    mainDot.style.width = size + 'px';
+    mainDot.style.height = size + 'px';
   });
   document.addEventListener('mouseup', function () {
-    mainDot.style.width = MAIN_SIZE + 'px';
-    mainDot.style.height = MAIN_SIZE + 'px';
+    var size = isHovering ? HOVER_SIZE : MAIN_SIZE;
+    mainDot.style.width = size + 'px';
+    mainDot.style.height = size + 'px';
   });
 
   // Animation loop
-  var colorCheckCounter = 0;
+  var hoverCheckCounter = 0;
   function animate() {
     mainDot.style.left = mouseX + 'px';
     mainDot.style.top = mouseY + 'px';
 
-    // Check color every 6 frames (~10 times/sec) to avoid perf hit
-    colorCheckCounter++;
-    if (colorCheckCounter % 6 === 0) {
-      updateCursorColor();
+    // Check hover every 6 frames (~10 times/sec) to avoid perf hit
+    hoverCheckCounter++;
+    if (hoverCheckCounter % 6 === 0) {
+      updateHoverState();
     }
 
     var leaderX = mouseX;
@@ -164,7 +147,6 @@
 
     for (var i = 0; i < trails.length; i++) {
       var t = trails[i];
-      // Each trail dot follows the one ahead of it with easing
       var speed = TRAIL_SPEED * (1 - i * 0.02);
       t.x += (leaderX - t.x) * speed;
       t.y += (leaderY - t.y) * speed;

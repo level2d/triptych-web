@@ -12,9 +12,9 @@
   var CURSOR_COLOR = '#AF00F1';
   var LIGHT_COLOR = '#FFFFFF';
   var DARK_COLOR = '#343434';
-  var TRAIL_LENGTH = 20;
+  var TRAIL_LENGTH = 30;
   var TRAIL_START_WIDTH = 18;
-  var TRAIL_MAX_DIST = 300;
+  var TRAIL_MAX_DIST = 500;
   var SMOOTHING = 0.45;
 
   // #E8E2D3 in RGB

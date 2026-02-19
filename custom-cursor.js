@@ -1,20 +1,23 @@
 /**
- * Custom Cursor with Smooth Trail
- * Purple circle cursor (#AF00F1) with a solid fading/tapering tail
+ * Custom Cursor with Smooth Bezier Trail
+ * Purple circle cursor (#AF00F1) with a smooth bezier-curved tail (#E8E2D3)
  * Shrinks and changes color on link/button hover (contrast-aware)
  */
 
 (function () {
-  // Skip on touch-only devices
   if ('ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches) return;
 
   var MAIN_SIZE = 20;
   var HOVER_SIZE = 15;
-  var TRAIL_COLOR = '#AF00F1';
+  var CURSOR_COLOR = '#AF00F1';
   var LIGHT_COLOR = '#FFFFFF';
   var DARK_COLOR = '#343434';
-  var TRAIL_LENGTH = 30;
+  var TRAIL_LENGTH = 50;
   var TRAIL_START_WIDTH = 10;
+  var SMOOTHING = 0.25;
+
+  // #E8E2D3 in RGB
+  var TRAIL_R = 232, TRAIL_G = 226, TRAIL_B = 211;
 
   var mouseX = -100;
   var mouseY = -100;
@@ -22,10 +25,10 @@
   var hoverColor = LIGHT_COLOR;
   var mouseVisible = true;
 
-  // Store position history for the trail
-  var history = [];
+  // Smoothed trail points — each point eases toward the one ahead of it
+  var points = [];
   for (var h = 0; h < TRAIL_LENGTH; h++) {
-    history.push({ x: -100, y: -100 });
+    points.push({ x: -100, y: -100 });
   }
 
   // Inject style to hide default cursor
@@ -36,26 +39,30 @@
   // Create canvas for the trail
   var canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99998;';
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
   document.body.appendChild(canvas);
   var ctx = canvas.getContext('2d');
 
-  window.addEventListener('resize', function () {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  });
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
 
   // Create main cursor dot
   var mainDot = document.createElement('div');
   mainDot.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none;z-index:99999;border-radius:50%;transform:translate(-50%,-50%);will-change:transform;'
     + 'width:' + MAIN_SIZE + 'px;height:' + MAIN_SIZE + 'px;'
-    + 'background-color:' + TRAIL_COLOR + ';'
-    + 'box-shadow:0 0 10px ' + TRAIL_COLOR + ',0 0 20px ' + TRAIL_COLOR + '60;'
+    + 'background-color:' + CURSOR_COLOR + ';'
+    + 'box-shadow:0 0 10px ' + CURSOR_COLOR + ',0 0 20px ' + CURSOR_COLOR + '60;'
     + 'transition:width 0.2s ease,height 0.2s ease,background-color 0.2s ease,box-shadow 0.2s ease,opacity 0.2s ease;';
   document.body.appendChild(mainDot);
 
-  // Track mouse position
+  // Track mouse
   document.addEventListener('mousemove', function (e) {
     mouseX = e.clientX;
     mouseY = e.clientY;
@@ -137,8 +144,8 @@
   function applyNormalStyle() {
     mainDot.style.width = MAIN_SIZE + 'px';
     mainDot.style.height = MAIN_SIZE + 'px';
-    mainDot.style.backgroundColor = TRAIL_COLOR;
-    mainDot.style.boxShadow = '0 0 10px ' + TRAIL_COLOR + ',0 0 20px ' + TRAIL_COLOR + '60';
+    mainDot.style.backgroundColor = CURSOR_COLOR;
+    mainDot.style.boxShadow = '0 0 10px ' + CURSOR_COLOR + ',0 0 20px ' + CURSOR_COLOR + '60';
   }
 
   function updateHoverState() {
@@ -160,7 +167,6 @@
     }
   }
 
-  // Shrink on click
   document.addEventListener('mousedown', function () {
     var size = isHovering ? HOVER_SIZE * 0.7 : MAIN_SIZE * 0.7;
     mainDot.style.width = size + 'px';
@@ -172,43 +178,64 @@
     mainDot.style.height = size + 'px';
   });
 
-  // --- Draw smooth trail ---
+  // --- Smooth bezier trail ---
 
-  // Parse hex to RGB for canvas
-  var trailRgb = { r: 175, g: 0, b: 241 }; // #AF00F1
+  function updatePoints() {
+    // First point tracks the mouse directly
+    points[0].x = mouseX;
+    points[0].y = mouseY;
+
+    // Each subsequent point eases toward the one ahead of it
+    for (var i = 1; i < points.length; i++) {
+      var ease = SMOOTHING * (1 - (i / points.length) * 0.5);
+      points[i].x += (points[i - 1].x - points[i].x) * ease;
+      points[i].y += (points[i - 1].y - points[i].y) * ease;
+    }
+  }
 
   function drawTrail() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (!mouseVisible || isHovering) return;
+    if (points[0].x < -50) return;
 
-    // Need at least 2 points to draw
-    if (history.length < 2) return;
+    // Find how many points are actually on-screen
+    var count = 0;
+    for (var c = 0; c < points.length; c++) {
+      if (points[c].x < -50) break;
+      count++;
+    }
+    if (count < 3) return;
 
-    // Don't draw if cursor is off-screen
-    if (history[0].x < -50) return;
+    // Draw the trail as a series of short bezier segments with
+    // varying width and opacity. We draw from tail to head so
+    // thicker/brighter segments paint on top.
+    for (var i = count - 2; i >= 1; i--) {
+      var progress = i / count;
 
-    for (var i = 1; i < history.length; i++) {
-      var p0 = history[i - 1];
-      var p1 = history[i];
+      // Ease the taper with a power curve for a smoother falloff
+      var taper = 1 - Math.pow(progress, 0.7);
+      var width = TRAIL_START_WIDTH * taper;
+      if (width < 0.3) continue;
 
-      // Skip if points are off-screen
-      if (p0.x < -50 || p1.x < -50) continue;
+      // Smooth opacity falloff
+      var alpha = 0.5 * taper;
 
-      // Progress along the tail (0 = near cursor, 1 = end of tail)
-      var progress = i / history.length;
+      // Previous, current, and next points
+      var prev = points[i - 1];
+      var curr = points[i];
+      var next = points[i + 1];
 
-      // Width tapers from TRAIL_START_WIDTH to 1
-      var width = TRAIL_START_WIDTH * (1 - progress);
-      if (width < 0.5) continue;
-
-      // Opacity fades from 0.6 to 0
-      var alpha = 0.6 * (1 - progress);
+      // Midpoints for smooth quadratic bezier
+      var mx0 = (prev.x + curr.x) * 0.5;
+      var my0 = (prev.y + curr.y) * 0.5;
+      var mx1 = (curr.x + next.x) * 0.5;
+      var my1 = (curr.y + next.y) * 0.5;
 
       ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y);
-      ctx.lineTo(p1.x, p1.y);
-      ctx.strokeStyle = 'rgba(' + trailRgb.r + ',' + trailRgb.g + ',' + trailRgb.b + ',' + alpha.toFixed(3) + ')';
+      ctx.moveTo(mx0, my0);
+      ctx.quadraticCurveTo(curr.x, curr.y, mx1, my1);
+      ctx.strokeStyle = 'rgba(' + TRAIL_R + ',' + TRAIL_G + ',' + TRAIL_B + ',' + alpha.toFixed(3) + ')';
       ctx.lineWidth = width;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -220,19 +247,11 @@
 
   var hoverCheckCounter = 0;
   function animate() {
-    // Shift history and add current position at the front
-    for (var i = history.length - 1; i > 0; i--) {
-      history[i].x = history[i - 1].x;
-      history[i].y = history[i - 1].y;
-    }
-    history[0].x = mouseX;
-    history[0].y = mouseY;
+    updatePoints();
 
-    // Position main dot
     mainDot.style.left = mouseX + 'px';
     mainDot.style.top = mouseY + 'px';
 
-    // Check hover every 4 frames
     hoverCheckCounter++;
     if (hoverCheckCounter % 4 === 0) {
       updateHoverState();

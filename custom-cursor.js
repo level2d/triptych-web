@@ -12,9 +12,9 @@
   var CURSOR_COLOR = '#AF00F1';
   var LIGHT_COLOR = '#FFFFFF';
   var DARK_COLOR = '#343434';
-  var TRAIL_LENGTH = 50;
-  var TRAIL_START_WIDTH = 10;
-  var SMOOTHING = 0.25;
+  var TRAIL_LENGTH = 16;
+  var TRAIL_START_WIDTH = 8;
+  var SMOOTHING = 0.45;
 
   // #E8E2D3 in RGB
   var TRAIL_R = 232, TRAIL_G = 226, TRAIL_B = 211;
@@ -178,16 +178,14 @@
     mainDot.style.height = size + 'px';
   });
 
-  // --- Smooth bezier trail ---
+  // --- Smooth fading trail ---
 
   function updatePoints() {
-    // First point tracks the mouse directly
     points[0].x = mouseX;
     points[0].y = mouseY;
 
-    // Each subsequent point eases toward the one ahead of it
     for (var i = 1; i < points.length; i++) {
-      var ease = SMOOTHING * (1 - (i / points.length) * 0.5);
+      var ease = SMOOTHING;
       points[i].x += (points[i - 1].x - points[i].x) * ease;
       points[i].y += (points[i - 1].y - points[i].y) * ease;
     }
@@ -199,46 +197,29 @@
     if (!mouseVisible || isHovering) return;
     if (points[0].x < -50) return;
 
-    // Find how many points are actually on-screen
+    // Count valid on-screen points
     var count = 0;
     for (var c = 0; c < points.length; c++) {
       if (points[c].x < -50) break;
       count++;
     }
-    if (count < 3) return;
+    if (count < 2) return;
 
-    // Draw the trail as a series of short bezier segments with
-    // varying width and opacity. We draw from tail to head so
-    // thicker/brighter segments paint on top.
-    for (var i = count - 2; i >= 1; i--) {
+    // Draw from tail to head so brighter segments paint on top
+    for (var i = count - 1; i >= 1; i--) {
       var progress = i / count;
-
-      // Ease the taper with a power curve for a smoother falloff
-      var taper = 1 - Math.pow(progress, 0.7);
+      var taper = 1 - progress;
       var width = TRAIL_START_WIDTH * taper;
       if (width < 0.3) continue;
 
-      // Smooth opacity falloff
-      var alpha = 0.5 * taper;
-
-      // Previous, current, and next points
-      var prev = points[i - 1];
-      var curr = points[i];
-      var next = points[i + 1];
-
-      // Midpoints for smooth quadratic bezier
-      var mx0 = (prev.x + curr.x) * 0.5;
-      var my0 = (prev.y + curr.y) * 0.5;
-      var mx1 = (curr.x + next.x) * 0.5;
-      var my1 = (curr.y + next.y) * 0.5;
+      var alpha = 0.45 * taper;
 
       ctx.beginPath();
-      ctx.moveTo(mx0, my0);
-      ctx.quadraticCurveTo(curr.x, curr.y, mx1, my1);
+      ctx.moveTo(points[i - 1].x, points[i - 1].y);
+      ctx.lineTo(points[i].x, points[i].y);
       ctx.strokeStyle = 'rgba(' + TRAIL_R + ',' + TRAIL_G + ',' + TRAIL_B + ',' + alpha.toFixed(3) + ')';
       ctx.lineWidth = width;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.lineCap = 'butt';
       ctx.stroke();
     }
   }

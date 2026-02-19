@@ -220,7 +220,7 @@
       var width = TRAIL_START_WIDTH * taper;
       if (width < 0.3) continue;
 
-      var alpha = 0.45 * taper;
+      var alpha = 0.34 * taper;
 
       ctx.beginPath();
       ctx.moveTo(points[i - 1].x, points[i - 1].y);

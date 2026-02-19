@@ -12,8 +12,9 @@
   var CURSOR_COLOR = '#AF00F1';
   var LIGHT_COLOR = '#FFFFFF';
   var DARK_COLOR = '#343434';
-  var TRAIL_LENGTH = 16;
-  var TRAIL_START_WIDTH = 8;
+  var TRAIL_LENGTH = 20;
+  var TRAIL_START_WIDTH = 18;
+  var TRAIL_MAX_DIST = 300;
   var SMOOTHING = 0.45;
 
   // #E8E2D3 in RGB
@@ -197,11 +198,18 @@
     if (!mouseVisible || isHovering) return;
     if (points[0].x < -50) return;
 
-    // Count valid on-screen points
+    // Count valid points and measure total trail distance
     var count = 0;
+    var totalDist = 0;
     for (var c = 0; c < points.length; c++) {
       if (points[c].x < -50) break;
+      if (c > 0) {
+        var dx = points[c].x - points[c - 1].x;
+        var dy = points[c].y - points[c - 1].y;
+        totalDist += Math.sqrt(dx * dx + dy * dy);
+      }
       count++;
+      if (totalDist >= TRAIL_MAX_DIST) break;
     }
     if (count < 2) return;
 

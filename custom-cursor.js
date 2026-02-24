@@ -17,9 +17,8 @@
   var TRAIL_MAX_DIST = 500;
   var SMOOTHING = 0.45;
 
-  // Trail gradient: #AF00F1 (start) → #E8E2D3 (end)
-  var TRAIL_START_R = 175, TRAIL_START_G = 0, TRAIL_START_B = 241;
-  var TRAIL_END_R = 232, TRAIL_END_G = 226, TRAIL_END_B = 211;
+  // #E8E2D3 in RGB
+  var TRAIL_R = 232, TRAIL_G = 226, TRAIL_B = 211;
 
   var mouseX = -100;
   var mouseY = -100;
@@ -221,17 +220,12 @@
       var width = TRAIL_START_WIDTH * taper;
       if (width < 0.3) continue;
 
-      var alpha = 0.25 * taper;
-
-      // Interpolate color from #AF00F1 (near cursor) to #E8E2D3 (tail)
-      var r = Math.round(TRAIL_START_R + (TRAIL_END_R - TRAIL_START_R) * progress);
-      var g = Math.round(TRAIL_START_G + (TRAIL_END_G - TRAIL_START_G) * progress);
-      var b = Math.round(TRAIL_START_B + (TRAIL_END_B - TRAIL_START_B) * progress);
+      var alpha = 0.34 * taper;
 
       ctx.beginPath();
       ctx.moveTo(points[i - 1].x, points[i - 1].y);
       ctx.lineTo(points[i].x, points[i].y);
-      ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha.toFixed(3) + ')';
+      ctx.strokeStyle = 'rgba(' + TRAIL_R + ',' + TRAIL_G + ',' + TRAIL_B + ',' + alpha.toFixed(3) + ')';
       ctx.lineWidth = width;
       ctx.lineCap = 'butt';
       ctx.stroke();

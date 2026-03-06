@@ -80,6 +80,9 @@
           0 2px 8px -2px rgba(0,0,0,${shadowOpacity * 0.6})
         `;
 
+        // Re-enforce border-radius in case Webflow resets it
+        nav.style.setProperty('border-radius', '0px 0px 16px 16px', 'important');
+
         ticking = false;
       });
       ticking = true;

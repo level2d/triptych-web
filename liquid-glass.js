@@ -18,7 +18,7 @@
       0 2px 8px -2px rgba(0,0,0,0.3)
     `,
     border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: '16px',
+    borderRadius: '0 0 16px 16px',
     position: 'relative',
     overflow: 'hidden',
     transition: 'box-shadow 0.4s ease, backdrop-filter 0.4s ease',

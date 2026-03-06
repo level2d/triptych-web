@@ -26,6 +26,60 @@
   // Force border-radius with !important to override Webflow styles
   nav.style.setProperty('border-radius', '0px 0px 16px 16px', 'important');
 
+  // --- Edge refraction (liquid glass distortion) ---
+  // SVG filter for glass-like displacement at the edges
+  var svgNS = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('width', '0');
+  svg.setAttribute('height', '0');
+  svg.style.position = 'absolute';
+  var defs = document.createElementNS(svgNS, 'defs');
+
+  // Edge distortion filter
+  var filter = document.createElementNS(svgNS, 'filter');
+  filter.setAttribute('id', 'liquid-glass-refract');
+  var turb = document.createElementNS(svgNS, 'feTurbulence');
+  turb.setAttribute('type', 'fractalNoise');
+  turb.setAttribute('baseFrequency', '0.015 0.02');
+  turb.setAttribute('numOctaves', '3');
+  turb.setAttribute('seed', '2');
+  turb.setAttribute('result', 'noise');
+  var disp = document.createElementNS(svgNS, 'feDisplacementMap');
+  disp.setAttribute('in', 'SourceGraphic');
+  disp.setAttribute('in2', 'noise');
+  disp.setAttribute('scale', '6');
+  disp.setAttribute('xChannelSelector', 'R');
+  disp.setAttribute('yChannelSelector', 'G');
+  filter.appendChild(turb);
+  filter.appendChild(disp);
+  defs.appendChild(filter);
+  svg.appendChild(defs);
+  document.body.appendChild(svg);
+
+  // Create edge refraction strips (left, right, bottom)
+  var EDGE_SIZE = 18;
+  var edges = [
+    { top: '0', left: '0', width: EDGE_SIZE + 'px', height: '100%' },           // left
+    { top: '0', right: '0', width: EDGE_SIZE + 'px', height: '100%' },          // right
+    { bottom: '0', left: '0', width: '100%', height: EDGE_SIZE + 'px' },        // bottom
+  ];
+  var edgeMasks = [
+    'linear-gradient(to right, rgba(0,0,0,0.7), transparent)',   // left fades right
+    'linear-gradient(to left, rgba(0,0,0,0.7), transparent)',    // right fades left
+    'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',     // bottom fades up
+  ];
+
+  edges.forEach(function (pos, i) {
+    var edgeEl = document.createElement('div');
+    var css = 'position:absolute;pointer-events:none;z-index:0;';
+    css += 'backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);';
+    css += 'filter:url(#liquid-glass-refract);';
+    css += '-webkit-mask-image:' + edgeMasks[i] + ';mask-image:' + edgeMasks[i] + ';';
+    Object.keys(pos).forEach(function (k) { css += k + ':' + pos[k] + ';'; });
+    edgeEl.style.cssText = css;
+    nav.appendChild(edgeEl);
+  });
+
   // Create the refraction/caustic highlight layer
   const sheen = document.createElement('div');
   Object.assign(sheen.style, {

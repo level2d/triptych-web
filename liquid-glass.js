@@ -71,11 +71,8 @@
     if (!ticking) {
       requestAnimationFrame(() => {
         const scrollY = window.scrollY;
-        const blur = Math.min(10 + scrollY * 0.05, 20);
         const shadowOpacity = Math.min(0.5 + scrollY * 0.002, 0.8);
 
-        nav.style.backdropFilter = `blur(${blur}px) saturate(1.8) brightness(1.05)`;
-        nav.style.WebkitBackdropFilter = `blur(${blur}px) saturate(1.8) brightness(1.05)`;
         nav.style.boxShadow = `
           0 1px 0 0 rgba(255,255,255,0.12) inset,
           0 -1px 0 0 rgba(255,255,255,0.04) inset,
